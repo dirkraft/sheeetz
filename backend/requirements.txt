@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+sqlalchemy[asyncio]
+aiosqlite
+pydantic-settings
+python-dotenv
+httpx
+pikepdf
+python-multipart
+itsdangerous
+alembic
