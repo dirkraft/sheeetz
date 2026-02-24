@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { getConfig, getSelectedFolders, removeFolder, type BackendType, type LibraryFolder } from '../api'
+import { getConfig, getSelectedFolders, removeFolder, scanFolder, type BackendType, type LibraryFolder, type ScanResult } from '../api'
 import FolderPicker from '../components/FolderPicker.vue'
 
 const selectedFolders = ref<LibraryFolder[]>([])
@@ -8,6 +8,8 @@ const backends = ref<BackendType[]>([])
 const showPicker = ref(false)
 const loading = ref(true)
 const error = ref('')
+const scanningIds = ref<Set<number>>(new Set())
+const scanResults = ref<Map<number, ScanResult>>(new Map())
 
 const selectedIds = computed(() => new Set(selectedFolders.value.map(f => f.backend_folder_id)))
 
@@ -32,6 +34,20 @@ async function handleAdded() {
   const data = await getSelectedFolders()
   selectedFolders.value = data.folders
 }
+
+async function handleScan(id: number) {
+  scanningIds.value = new Set([...scanningIds.value, id])
+  try {
+    const result = await scanFolder(id)
+    scanResults.value = new Map([...scanResults.value, [id, result]])
+  } catch (e: any) {
+    error.value = e.message
+  } finally {
+    const next = new Set(scanningIds.value)
+    next.delete(id)
+    scanningIds.value = next
+  }
+}
 </script>
 
 <template>
@@ -52,8 +68,16 @@ async function handleAdded() {
               <span class="badge" :class="f.backend_type">{{ f.backend_type === 'local' ? 'Local' : 'Drive' }}</span>
               <strong>{{ f.folder_name }}</strong>
               <small class="folder-path">{{ f.folder_path }}</small>
+              <small v-if="scanResults.has(f.id)" class="scan-result">
+                {{ scanResults.get(f.id)!.new_count }} new, {{ scanResults.get(f.id)!.total_count }} total PDFs
+              </small>
             </div>
-            <button class="remove-btn" @click="handleRemove(f.id)">Remove</button>
+            <div class="folder-actions">
+              <button class="scan-btn" :disabled="scanningIds.has(f.id)" @click="handleScan(f.id)">
+                {{ scanningIds.has(f.id) ? 'Scanning...' : 'Scan' }}
+              </button>
+              <button class="remove-btn" @click="handleRemove(f.id)">Remove</button>
+            </div>
           </li>
         </ul>
         <button class="add-btn" @click="showPicker = true">Add Folder</button>
@@ -99,6 +123,36 @@ async function handleAdded() {
   display: block;
   color: #888;
   font-size: 0.85rem;
+}
+
+.folder-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.scan-btn {
+  background: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.scan-btn:hover:not(:disabled) {
+  background: #388e3c;
+}
+
+.scan-btn:disabled {
+  background: #a5d6a7;
+  cursor: default;
+}
+
+.scan-result {
+  display: block;
+  color: #4caf50;
+  font-size: 0.8rem;
 }
 
 .remove-btn {

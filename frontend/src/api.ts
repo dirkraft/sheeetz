@@ -17,8 +17,55 @@ export async function getMe() {
   return apiFetch<{ id: number; email: string; name: string }>('/auth/me')
 }
 
-export async function getSheets() {
-  return apiFetch<{ sheets: unknown[]; total: number }>('/sheets')
+// --- Sheet types ---
+
+export interface SheetRecord {
+  id: number
+  filename: string
+  folder_path: string | null
+  backend_type: BackendType
+  library_folder_id: number | null
+  metadata: Record<string, string>
+}
+
+export interface SheetListResult {
+  sheets: SheetRecord[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface SheetListParams {
+  filename?: string
+  folder_id?: number
+  meta_key?: string
+  meta_value?: string
+  sort_by?: string
+  sort_dir?: 'asc' | 'desc'
+  page?: number
+  page_size?: number
+}
+
+export async function getSheets(params: SheetListParams = {}) {
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) qs.set(k, String(v))
+  }
+  const suffix = qs.toString() ? `?${qs}` : ''
+  return apiFetch<SheetListResult>(`/sheets${suffix}`)
+}
+
+// --- Scan ---
+
+export interface ScanResult {
+  folder_id: number
+  new_count: number
+  total_count: number
+  skipped_count: number
+}
+
+export async function scanFolder(folderId: number) {
+  return apiFetch<ScanResult>(`/folders/${folderId}/scan`, { method: 'POST' })
 }
 
 // --- Config ---
