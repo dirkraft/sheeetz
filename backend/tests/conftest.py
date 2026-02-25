@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 
+import pikepdf
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -20,6 +21,45 @@ from sheeetz.db import get_db  # noqa: E402
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 TEST_SECRET = "test-secret"
 TEST_EMAIL = "dirkraft.agents@gmail.com"
+
+
+def _generate_fixture_pdf(path: Path, title: str = "", author: str = "", subject: str = "", keywords: str = "") -> None:
+    """Generate a minimal valid PDF with metadata using pikepdf."""
+    pdf = pikepdf.Pdf.new()
+    pdf.add_blank_page(page_size=(612, 792))  # Letter size
+    with pdf.open_metadata(set_pikepdf_as_editor=False) as xmp:
+        if title:
+            xmp["dc:title"] = title
+        if author:
+            xmp["dc:creator"] = author
+        if subject:
+            xmp["dc:subject"] = subject
+        if keywords:
+            xmp["pdf:Keywords"] = keywords
+    pdf.save(path)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def generate_fixtures():
+    """Generate proper fixture PDFs with metadata before any tests run."""
+    FIXTURES_DIR.mkdir(parents=True, exist_ok=True)
+    subfolder = FIXTURES_DIR / "subfolder"
+    subfolder.mkdir(parents=True, exist_ok=True)
+
+    _generate_fixture_pdf(
+        FIXTURES_DIR / "sample.pdf",
+        title="Sonata No. 14",
+        author="Ludwig van Beethoven",
+        subject="Classical",
+        keywords="piano, sonata, moonlight",
+    )
+    _generate_fixture_pdf(
+        subfolder / "nested.pdf",
+        title="Prelude in C Major",
+        author="Johann Sebastian Bach",
+        subject="Baroque",
+        keywords="keyboard, prelude",
+    )
 
 
 @pytest_asyncio.fixture
