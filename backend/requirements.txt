@@ -9,3 +9,5 @@ pikepdf
 python-multipart
 itsdangerous
 alembic
+pytest
+pytest-asyncio

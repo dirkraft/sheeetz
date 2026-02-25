@@ -24,6 +24,7 @@ export interface SheetRecord {
   filename: string
   folder_path: string | null
   backend_type: BackendType
+  backend_file_id: string
   library_folder_id: number | null
   metadata: Record<string, string>
 }
@@ -44,6 +45,18 @@ export interface SheetListParams {
   sort_dir?: 'asc' | 'desc'
   page?: number
   page_size?: number
+}
+
+export async function getSheet(sheetId: number) {
+  return apiFetch<SheetRecord>(`/sheets/${sheetId}`)
+}
+
+export async function getSheetPDF(sheetId: number): Promise<ArrayBuffer> {
+  const resp = await fetch(`${BASE_URL}/sheets/${sheetId}/pdf`, {
+    credentials: 'include',
+  })
+  if (!resp.ok) throw new Error(`API ${resp.status}: ${resp.statusText}`)
+  return resp.arrayBuffer()
 }
 
 export async function getSheets(params: SheetListParams = {}) {

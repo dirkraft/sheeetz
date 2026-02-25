@@ -1,10 +1,14 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..db import get_db
 from ..models import Sheet, SheetMeta, User
+from ..storage.drive_api import DriveTokenError, download_file, get_valid_token
 from .auth import get_current_user
 
 router = APIRouter(prefix="/sheets", tags=["sheets"])
@@ -94,9 +98,46 @@ async def get_sheet(
         "filename": sheet.filename,
         "folder_path": sheet.folder_path,
         "backend_type": sheet.backend_type,
+        "backend_file_id": sheet.backend_file_id,
         "library_folder_id": sheet.library_folder_id,
         "metadata": {m.key: m.value for m in sheet.metadata_entries},
     }
+
+
+@router.get("/{sheet_id}/pdf")
+async def download_sheet_pdf(
+    sheet_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Sheet).where(Sheet.id == sheet_id, Sheet.user_id == user.id)
+    )
+    sheet = result.scalar_one_or_none()
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Sheet not found")
+
+    if sheet.backend_type == "local":
+        path = Path(sheet.backend_file_id)
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="File not found on disk")
+        return FileResponse(path, media_type="application/pdf", filename=sheet.filename)
+
+    # gdrive
+    try:
+        access_token, updated_json = await get_valid_token(user)
+    except DriveTokenError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    if updated_json != user.drive_token_json:
+        user.drive_token_json = updated_json
+        await db.commit()
+
+    content = await download_file(access_token, sheet.backend_file_id)
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{sheet.filename}"'},
+    )
 
 
 @router.patch("/{sheet_id}/metadata")

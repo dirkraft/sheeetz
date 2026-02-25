@@ -108,6 +108,20 @@ async def build_folder_path(access_token: str, folder_id: str) -> str:
     return "/" + "/".join(parts)
 
 
+async def download_file(access_token: str, file_id: str) -> bytes:
+    """Download file content from Google Drive."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{DRIVE_API}/files/{file_id}",
+            params={"alt": "media"},
+            headers=headers,
+            follow_redirects=True,
+        )
+        resp.raise_for_status()
+        return resp.content
+
+
 async def list_pdf_files_recursive(access_token: str, folder_id: str) -> list[dict]:
     """Recursively list all PDF files under a folder.
 

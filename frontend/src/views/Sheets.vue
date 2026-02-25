@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getSheets, getSelectedFolders, type SheetRecord, type LibraryFolder } from '../api'
+
+const router = useRouter()
 
 const sheets = ref<SheetRecord[]>([])
 const total = ref(0)
@@ -123,7 +126,7 @@ function sortIndicator(col: string) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="s in sheets" :key="s.id">
+          <tr v-for="s in sheets" :key="s.id" class="sheet-row" @click="router.push(`/sheets/${s.id}`)">
             <td>{{ s.filename }}</td>
             <td class="folder-cell">{{ s.folder_path || '—' }}</td>
             <td>
@@ -206,6 +209,14 @@ function sortIndicator(col: string) {
 
 .sortable:hover {
   color: #333;
+}
+
+.sheet-row {
+  cursor: pointer;
+}
+
+.sheet-row:hover {
+  background: #f5f5f5;
 }
 
 .folder-cell {

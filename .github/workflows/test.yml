@@ -1,0 +1,38 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      SECRET_KEY: test-secret
+      ENABLE_LOCAL_BACKEND: "true"
+      DATABASE_URL: "sqlite+aiosqlite://"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest tests/ -v --ignore=tests/test_drive.py
+
+      - name: Run Drive integration tests
+        if: ${{ env.GOOGLE_CLIENT_ID != '' }}
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          TEST_DRIVE_TOKEN_JSON: ${{ secrets.TEST_DRIVE_TOKEN_JSON }}
+        run: pytest tests/test_drive.py -v -m drive
