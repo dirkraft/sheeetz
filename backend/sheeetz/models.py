@@ -61,7 +61,7 @@ class LibraryFolder(Base):
     folder_path = Column(String, nullable=False, default="/")
 
     user = relationship("User", back_populates="library_folders")
-    sheets = relationship("Sheet", back_populates="library_folder")
+    sheets = relationship("Sheet", back_populates="library_folder", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("user_id", "backend_type", "backend_folder_id", name="uq_user_folder"),

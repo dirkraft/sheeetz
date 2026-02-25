@@ -68,6 +68,12 @@ export async function scanFolder(folderId: number) {
   return apiFetch<ScanResult>(`/folders/${folderId}/scan`, { method: 'POST' })
 }
 
+// --- Admin ---
+
+export async function clearIndex() {
+  return apiFetch<{ deleted: number }>('/admin/clear-index', { method: 'POST' })
+}
+
 // --- Config ---
 
 export async function getConfig() {
