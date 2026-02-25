@@ -148,6 +148,40 @@ async def add_folder(
     }
 
 
+@router.post("/{folder_id}/scan")
+async def scan_folder(
+    folder_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(LibraryFolder).where(
+            LibraryFolder.id == folder_id,
+            LibraryFolder.user_id == user.id,
+        )
+    )
+    folder = result.scalar_one_or_none()
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+
+    _check_backend(folder.backend_type)
+
+    if folder.backend_type == "local":
+        from ..storage.scanner import scan_local_folder
+        scan_result = await scan_local_folder(folder, db)
+    else:
+        from ..storage.scanner import scan_gdrive_folder
+        token = await _refresh_and_get_token(user, db)
+        scan_result = await scan_gdrive_folder(folder, token, db)
+
+    return {
+        "folder_id": folder_id,
+        "new_count": scan_result.new_count,
+        "total_count": scan_result.total_count,
+        "skipped_count": scan_result.skipped_count,
+    }
+
+
 @router.delete("/{folder_id}", status_code=204)
 async def remove_folder(
     folder_id: int,

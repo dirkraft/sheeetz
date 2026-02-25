@@ -24,12 +24,19 @@ class Sheet(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    drive_file_id = Column(String, nullable=True, index=True)
+    library_folder_id = Column(Integer, ForeignKey("library_folders.id"), nullable=True, index=True)
+    backend_type = Column(String, nullable=False)  # "local" or "gdrive"
+    backend_file_id = Column(String, nullable=False, index=True)  # absolute path or Drive file ID
     filename = Column(String, nullable=False)
     folder_path = Column(String, nullable=True)
 
     user = relationship("User", back_populates="sheets")
+    library_folder = relationship("LibraryFolder", back_populates="sheets")
     metadata_entries = relationship("SheetMeta", back_populates="sheet", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "backend_type", "backend_file_id", name="uq_user_sheet"),
+    )
 
 
 class SheetMeta(Base):
@@ -54,6 +61,7 @@ class LibraryFolder(Base):
     folder_path = Column(String, nullable=False, default="/")
 
     user = relationship("User", back_populates="library_folders")
+    sheets = relationship("Sheet", back_populates="library_folder", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("user_id", "backend_type", "backend_folder_id", name="uq_user_folder"),

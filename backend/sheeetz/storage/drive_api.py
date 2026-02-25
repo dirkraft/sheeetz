@@ -106,3 +106,51 @@ async def build_folder_path(access_token: str, folder_id: str) -> str:
 
     parts.reverse()
     return "/" + "/".join(parts)
+
+
+async def list_pdf_files_recursive(access_token: str, folder_id: str) -> list[dict]:
+    """Recursively list all PDF files under a folder.
+
+    Returns list of {"id": str, "name": str, "folder_path": str}.
+    """
+    headers = {"Authorization": f"Bearer {access_token}"}
+    results: list[dict] = []
+
+    async def _collect(fid: str, path_prefix: str):
+        # List PDFs in this folder
+        query = (
+            f"'{fid}' in parents "
+            "and mimeType = 'application/pdf' "
+            "and trashed = false"
+        )
+        params: dict = {
+            "q": query,
+            "fields": "files(id,name),nextPageToken",
+            "pageSize": 1000,
+        }
+        async with httpx.AsyncClient() as client:
+            while True:
+                resp = await client.get(
+                    f"{DRIVE_API}/files", params=params, headers=headers
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                for f in data.get("files", []):
+                    results.append({
+                        "id": f["id"],
+                        "name": f["name"],
+                        "folder_path": path_prefix,
+                    })
+                next_page = data.get("nextPageToken")
+                if not next_page:
+                    break
+                params["pageToken"] = next_page
+
+        # Recurse into subfolders
+        subfolders = await list_folders(access_token, fid)
+        for sf in subfolders:
+            sub_path = f"{path_prefix}/{sf['name']}" if path_prefix else sf["name"]
+            await _collect(sf["id"], sub_path)
+
+    await _collect(folder_id, "")
+    return results
