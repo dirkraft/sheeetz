@@ -12,6 +12,8 @@ const pageSize = 50
 
 const filterFilename = ref('')
 const filterFolderId = ref<number | null>(null)
+const filterComposer = ref('')
+const filterGenre = ref('')
 const sortBy = ref('filename')
 const sortDir = ref<'asc' | 'desc'>('asc')
 
@@ -25,9 +27,14 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
+    const metaFilters: Record<string, string> = {}
+    if (filterComposer.value) metaFilters.composer = filterComposer.value
+    if (filterGenre.value) metaFilters.genre = filterGenre.value
+
     const data = await getSheets({
       filename: filterFilename.value || undefined,
       folder_id: filterFolderId.value ?? undefined,
+      meta_filters: Object.keys(metaFilters).length ? metaFilters : undefined,
       sort_by: sortBy.value,
       sort_dir: sortDir.value,
       page: page.value,
@@ -51,6 +58,8 @@ function debouncedLoad() {
 }
 
 watch(filterFilename, debouncedLoad)
+watch(filterComposer, debouncedLoad)
+watch(filterGenre, debouncedLoad)
 watch([filterFolderId, sortBy, sortDir], () => {
   page.value = 1
   load()
@@ -94,6 +103,18 @@ function sortIndicator(col: string) {
         placeholder="Search by filename..."
         class="filter-input"
       />
+      <input
+        v-model="filterComposer"
+        type="text"
+        placeholder="Composer..."
+        class="filter-input filter-short"
+      />
+      <input
+        v-model="filterGenre"
+        type="text"
+        placeholder="Genre..."
+        class="filter-input filter-short"
+      />
       <select v-model="filterFolderId" class="filter-select">
         <option :value="null">All Folders</option>
         <option v-for="f in folders" :key="f.id" :value="f.id">
@@ -119,6 +140,7 @@ function sortIndicator(col: string) {
             <th @click="toggleSort('filename')" class="sortable">
               Filename{{ sortIndicator('filename') }}
             </th>
+            <th>Composer</th>
             <th @click="toggleSort('folder_path')" class="sortable">
               Folder{{ sortIndicator('folder_path') }}
             </th>
@@ -128,6 +150,7 @@ function sortIndicator(col: string) {
         <tbody>
           <tr v-for="s in sheets" :key="s.id" class="sheet-row" @click="router.push(`/sheets/${s.id}`)">
             <td>{{ s.filename }}</td>
+            <td class="composer-cell">{{ s.metadata?.composer || '—' }}</td>
             <td class="folder-cell">{{ s.folder_path || '—' }}</td>
             <td>
               <span class="badge" :class="s.backend_type">
@@ -149,7 +172,7 @@ function sortIndicator(col: string) {
 
 <style scoped>
 .sheets {
-  max-width: 900px;
+  max-width: 960px;
   margin: 2rem auto;
   padding: 0 1rem;
 }
@@ -168,6 +191,11 @@ function sortIndicator(col: string) {
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 0.9rem;
+}
+
+.filter-short {
+  flex: 0 1 160px;
+  min-width: 120px;
 }
 
 .filter-select {
@@ -217,6 +245,11 @@ function sortIndicator(col: string) {
 
 .sheet-row:hover {
   background: #f5f5f5;
+}
+
+.composer-cell {
+  color: #555;
+  font-size: 0.9rem;
 }
 
 .folder-cell {

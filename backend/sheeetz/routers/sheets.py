@@ -1,14 +1,26 @@
+import json
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
 from ..db import get_db
 from ..models import Sheet, SheetMeta, User
-from ..storage.drive_api import DriveTokenError, download_file, get_valid_token
+from ..storage.drive_api import (
+    DriveTokenError,
+    download_file,
+    get_valid_token,
+    upload_file_content,
+)
+from ..storage.metadata import (
+    EDITABLE_CORE_KEYS,
+    extract_pdf_metadata,
+    map_raw_to_core,
+    write_pdf_metadata,
+)
 from .auth import get_current_user
 
 router = APIRouter(prefix="/sheets", tags=["sheets"])
@@ -20,6 +32,7 @@ async def list_sheets(
     filename: str | None = None,
     meta_key: str | None = None,
     meta_value: str | None = None,
+    meta_filters: str | None = Query(None, description="JSON dict of {field: substring} filters"),
     sort_by: str = "filename",
     sort_dir: str = "asc",
     page: int = 1,
@@ -39,6 +52,7 @@ async def list_sheets(
     if filename:
         query = query.where(Sheet.filename.ilike(f"%{filename}%"))
 
+    # Legacy single meta filter
     if meta_key and meta_value:
         query = query.join(
             SheetMeta,
@@ -51,6 +65,23 @@ async def list_sheets(
             SheetMeta,
             (SheetMeta.sheet_id == Sheet.id) & (SheetMeta.key == meta_key),
         )
+
+    # Multi-field meta filters: each key gets its own aliased join (AND semantics)
+    if meta_filters:
+        try:
+            filters_dict = json.loads(meta_filters)
+        except (json.JSONDecodeError, TypeError):
+            raise HTTPException(status_code=400, detail="meta_filters must be valid JSON")
+        for field_key, field_value in filters_dict.items():
+            if not field_value:
+                continue
+            meta_alias = aliased(SheetMeta)
+            query = query.join(
+                meta_alias,
+                (meta_alias.sheet_id == Sheet.id)
+                & (meta_alias.key == field_key)
+                & (meta_alias.value.ilike(f"%{field_value}%")),
+            )
 
     sort_col = Sheet.filename if sort_by == "filename" else Sheet.folder_path
     query = query.order_by(sort_col.asc() if sort_dir == "asc" else sort_col.desc())
@@ -140,6 +171,39 @@ async def download_sheet_pdf(
     )
 
 
+@router.get("/{sheet_id}/pdf-metadata")
+async def get_pdf_metadata(
+    sheet_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Extract and return raw PDF metadata without saving it."""
+    result = await db.execute(
+        select(Sheet).where(Sheet.id == sheet_id, Sheet.user_id == user.id)
+    )
+    sheet = result.scalar_one_or_none()
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Sheet not found")
+
+    if sheet.backend_type == "local":
+        path = Path(sheet.backend_file_id)
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="File not found on disk")
+        pdf_bytes = path.read_bytes()
+    else:
+        try:
+            access_token, updated_json = await get_valid_token(user)
+        except DriveTokenError as e:
+            raise HTTPException(status_code=401, detail=str(e))
+        if updated_json != user.drive_token_json:
+            user.drive_token_json = updated_json
+            await db.commit()
+        pdf_bytes = await download_file(access_token, sheet.backend_file_id)
+
+    metadata = extract_pdf_metadata(pdf_bytes)
+    return {"sheet_id": sheet_id, "filename": sheet.filename, "metadata": metadata}
+
+
 @router.patch("/{sheet_id}/metadata")
 async def update_metadata(
     sheet_id: int,
@@ -147,5 +211,70 @@ async def update_metadata(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # TODO: update metadata in PDF and index
-    return {"id": sheet_id, "metadata": metadata, "updated": True}
+    """Update core metadata fields in the PDF (sheeetz namespace) and the index."""
+    result = await db.execute(
+        select(Sheet)
+        .where(Sheet.id == sheet_id, Sheet.user_id == user.id)
+        .options(selectinload(Sheet.metadata_entries))
+    )
+    sheet = result.scalar_one_or_none()
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Sheet not found")
+
+    # Only accept editable core keys
+    core_updates = {k: v for k, v in metadata.items() if k in EDITABLE_CORE_KEYS}
+
+    # --- Write to PDF ---
+    if sheet.backend_type == "local":
+        path = Path(sheet.backend_file_id)
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="File not found on disk")
+        pdf_bytes = path.read_bytes()
+        try:
+            updated_pdf = write_pdf_metadata(pdf_bytes, core_updates)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Failed to write PDF metadata: {e}")
+        path.write_bytes(updated_pdf)
+    else:
+        # gdrive: download, modify, upload
+        try:
+            access_token, updated_json = await get_valid_token(user)
+        except DriveTokenError as e:
+            raise HTTPException(status_code=401, detail=str(e))
+        if updated_json != user.drive_token_json:
+            user.drive_token_json = updated_json
+
+        pdf_bytes = await download_file(access_token, sheet.backend_file_id)
+        try:
+            updated_pdf = write_pdf_metadata(pdf_bytes, core_updates)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Failed to write PDF metadata: {e}")
+        await upload_file_content(access_token, sheet.backend_file_id, updated_pdf)
+
+    # --- Update index from the written PDF ---
+    raw = extract_pdf_metadata(updated_pdf)
+    mapped = map_raw_to_core(raw)
+
+    # Delete existing metadata entries and replace
+    for entry in list(sheet.metadata_entries):
+        await db.delete(entry)
+    await db.flush()
+
+    for key, value in mapped.items():
+        db.add(SheetMeta(sheet_id=sheet.id, key=key, value=value))
+
+    await db.commit()
+
+    # Reload to get fresh metadata
+    await db.refresh(sheet)
+    result2 = await db.execute(
+        select(Sheet)
+        .where(Sheet.id == sheet_id)
+        .options(selectinload(Sheet.metadata_entries))
+    )
+    sheet = result2.scalar_one()
+
+    return {
+        "id": sheet.id,
+        "metadata": {m.key: m.value for m in sheet.metadata_entries},
+    }

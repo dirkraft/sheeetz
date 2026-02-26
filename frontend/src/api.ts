@@ -41,6 +41,7 @@ export interface SheetListParams {
   folder_id?: number
   meta_key?: string
   meta_value?: string
+  meta_filters?: Record<string, string>
   sort_by?: string
   sort_dir?: 'asc' | 'desc'
   page?: number
@@ -62,10 +63,37 @@ export async function getSheetPDF(sheetId: number): Promise<ArrayBuffer> {
 export async function getSheets(params: SheetListParams = {}) {
   const qs = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null) qs.set(k, String(v))
+    if (v === undefined || v === null) continue
+    if (k === 'meta_filters') {
+      qs.set(k, JSON.stringify(v))
+    } else {
+      qs.set(k, String(v))
+    }
   }
   const suffix = qs.toString() ? `?${qs}` : ''
   return apiFetch<SheetListResult>(`/sheets${suffix}`)
+}
+
+export interface PdfMetadataResult {
+  sheet_id: number
+  filename: string
+  metadata: Record<string, string>
+}
+
+export async function getPdfMetadata(sheetId: number) {
+  return apiFetch<PdfMetadataResult>(`/sheets/${sheetId}/pdf-metadata`)
+}
+
+export interface MetadataUpdateResult {
+  id: number
+  metadata: Record<string, string>
+}
+
+export async function updateSheetMetadata(sheetId: number, metadata: Record<string, string>) {
+  return apiFetch<MetadataUpdateResult>(`/sheets/${sheetId}/metadata`, {
+    method: 'PATCH',
+    body: JSON.stringify(metadata),
+  })
 }
 
 // --- Scan ---

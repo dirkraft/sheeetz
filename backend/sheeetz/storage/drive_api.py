@@ -111,7 +111,7 @@ async def build_folder_path(access_token: str, folder_id: str) -> str:
 async def download_file(access_token: str, file_id: str) -> bytes:
     """Download file content from Google Drive."""
     headers = {"Authorization": f"Bearer {access_token}"}
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.get(
             f"{DRIVE_API}/files/{file_id}",
             params={"alt": "media"},
@@ -120,6 +120,22 @@ async def download_file(access_token: str, file_id: str) -> bytes:
         )
         resp.raise_for_status()
         return resp.content
+
+
+async def upload_file_content(access_token: str, file_id: str, content: bytes) -> None:
+    """Upload (overwrite) file content on Google Drive."""
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/pdf",
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.patch(
+            f"https://www.googleapis.com/upload/drive/v3/files/{file_id}",
+            params={"uploadType": "media"},
+            content=content,
+            headers=headers,
+        )
+        resp.raise_for_status()
 
 
 async def list_pdf_files_recursive(access_token: str, folder_id: str) -> list[dict]:

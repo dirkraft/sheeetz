@@ -19,17 +19,17 @@ test.describe('Sheets', () => {
     await page.goto('/sheets')
     await expect(page.locator('.result-count')).toContainText('2 sheets')
 
-    await page.locator('.filter-input').fill('sample')
+    await page.getByPlaceholder('Search by filename').fill('sample')
     await expect(page.locator('.result-count')).toContainText('1 sheet found')
     await expect(page.getByText('sample.pdf')).toBeVisible()
   })
 
   test('clear filter restores all', async ({ page }) => {
     await page.goto('/sheets')
-    await page.locator('.filter-input').fill('sample')
+    await page.getByPlaceholder('Search by filename').fill('sample')
     await expect(page.locator('.result-count')).toContainText('1 sheet')
 
-    await page.locator('.filter-input').clear()
+    await page.getByPlaceholder('Search by filename').clear()
     await expect(page.locator('.result-count')).toContainText('2 sheets')
   })
 

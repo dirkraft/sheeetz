@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
+const apiTarget = process.env.VITE_API_TARGET || 'http://localhost:8000'
+
 export default defineConfig({
   plugins: [vue()],
   server: {
@@ -8,7 +10,7 @@ export default defineConfig({
     allowedHosts: ['serrverr', 'serrverr.tail2ec075.ts.net'],
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: apiTarget,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
