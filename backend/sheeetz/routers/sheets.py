@@ -9,18 +9,8 @@ from sqlalchemy.orm import aliased, selectinload
 
 from ..db import get_db
 from ..models import Sheet, SheetMeta, User
-from ..storage.drive_api import (
-    DriveTokenError,
-    download_file,
-    get_valid_token,
-    upload_file_content,
-)
-from ..storage.metadata import (
-    EDITABLE_CORE_KEYS,
-    extract_pdf_metadata,
-    map_raw_to_core,
-    write_pdf_metadata,
-)
+from ..storage.drive_api import DriveTokenError, download_file, get_valid_token
+from ..storage.metadata import extract_pdf_metadata
 from .auth import get_current_user
 
 router = APIRouter(prefix="/sheets", tags=["sheets"])
@@ -211,82 +201,5 @@ async def update_metadata(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update core metadata fields in the PDF (sheeetz namespace) and the index."""
-    result = await db.execute(
-        select(Sheet)
-        .where(Sheet.id == sheet_id, Sheet.user_id == user.id)
-        .options(selectinload(Sheet.metadata_entries))
-    )
-    sheet = result.scalar_one_or_none()
-    if not sheet:
-        raise HTTPException(status_code=404, detail="Sheet not found")
-
-    # Only accept editable core keys
-    core_updates = {k: v for k, v in metadata.items() if k in EDITABLE_CORE_KEYS}
-
-    # --- Try to write to PDF (best-effort) ---
-    pdf_written = False
-    if sheet.backend_type == "local":
-        path = Path(sheet.backend_file_id)
-        if not path.is_file():
-            raise HTTPException(status_code=404, detail="File not found on disk")
-        pdf_bytes = path.read_bytes()
-        try:
-            updated_pdf = write_pdf_metadata(pdf_bytes, core_updates)
-            path.write_bytes(updated_pdf)
-            pdf_written = True
-        except Exception:
-            pass  # PDF couldn't be modified — will still update index
-    else:
-        # gdrive: download, modify, upload
-        try:
-            access_token, updated_json = await get_valid_token(user)
-        except DriveTokenError as e:
-            raise HTTPException(status_code=401, detail=str(e))
-        if updated_json != user.drive_token_json:
-            user.drive_token_json = updated_json
-
-        pdf_bytes = await download_file(access_token, sheet.backend_file_id)
-        try:
-            updated_pdf = write_pdf_metadata(pdf_bytes, core_updates)
-            await upload_file_content(access_token, sheet.backend_file_id, updated_pdf)
-            pdf_written = True
-        except Exception:
-            pass  # PDF couldn't be modified — will still update index
-
-    # --- Update index ---
-    # If PDF was written, re-extract to get merged view; otherwise build from existing + edits
-    if pdf_written:
-        raw = extract_pdf_metadata(updated_pdf)
-        mapped = map_raw_to_core(raw)
-    else:
-        mapped = {m.key: m.value for m in sheet.metadata_entries}
-        for key, value in core_updates.items():
-            if value.strip():
-                mapped[key] = value.strip()
-            else:
-                mapped.pop(key, None)
-
-    # Delete existing metadata entries and replace
-    for entry in list(sheet.metadata_entries):
-        await db.delete(entry)
-    await db.flush()
-
-    for key, value in mapped.items():
-        db.add(SheetMeta(sheet_id=sheet.id, key=key, value=value))
-
-    await db.commit()
-
-    # Reload to get fresh metadata
-    await db.refresh(sheet)
-    result2 = await db.execute(
-        select(Sheet)
-        .where(Sheet.id == sheet_id)
-        .options(selectinload(Sheet.metadata_entries))
-    )
-    sheet = result2.scalar_one()
-
-    return {
-        "id": sheet.id,
-        "metadata": {m.key: m.value for m in sheet.metadata_entries},
-    }
+    # TODO: metadata editing deferred — need to decide on write strategy
+    raise HTTPException(status_code=501, detail="Metadata editing not yet implemented")

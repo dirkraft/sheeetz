@@ -84,18 +84,6 @@ export async function getPdfMetadata(sheetId: number) {
   return apiFetch<PdfMetadataResult>(`/sheets/${sheetId}/pdf-metadata`)
 }
 
-export interface MetadataUpdateResult {
-  id: number
-  metadata: Record<string, string>
-}
-
-export async function updateSheetMetadata(sheetId: number, metadata: Record<string, string>) {
-  return apiFetch<MetadataUpdateResult>(`/sheets/${sheetId}/metadata`, {
-    method: 'PATCH',
-    body: JSON.stringify(metadata),
-  })
-}
-
 // --- Scan ---
 
 export interface ScanResult {
