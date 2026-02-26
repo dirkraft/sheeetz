@@ -224,8 +224,7 @@ async def update_metadata(
     # Only accept editable core keys
     core_updates = {k: v for k, v in metadata.items() if k in EDITABLE_CORE_KEYS}
 
-    # --- Try to write to PDF (best-effort) ---
-    pdf_written = False
+    # --- Write to PDF ---
     if sheet.backend_type == "local":
         path = Path(sheet.backend_file_id)
         if not path.is_file():
@@ -233,10 +232,9 @@ async def update_metadata(
         pdf_bytes = path.read_bytes()
         try:
             updated_pdf = write_pdf_metadata(pdf_bytes, core_updates)
-            path.write_bytes(updated_pdf)
-            pdf_written = True
-        except Exception:
-            pass  # PDF couldn't be modified — will still update index
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Failed to write PDF metadata: {e}")
+        path.write_bytes(updated_pdf)
     else:
         # gdrive: download, modify, upload
         try:
@@ -249,23 +247,13 @@ async def update_metadata(
         pdf_bytes = await download_file(access_token, sheet.backend_file_id)
         try:
             updated_pdf = write_pdf_metadata(pdf_bytes, core_updates)
-            await upload_file_content(access_token, sheet.backend_file_id, updated_pdf)
-            pdf_written = True
-        except Exception:
-            pass  # PDF couldn't be modified — will still update index
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"Failed to write PDF metadata: {e}")
+        await upload_file_content(access_token, sheet.backend_file_id, updated_pdf)
 
-    # --- Update index ---
-    # If PDF was written, re-extract to get merged view; otherwise build from existing + edits
-    if pdf_written:
-        raw = extract_pdf_metadata(updated_pdf)
-        mapped = map_raw_to_core(raw)
-    else:
-        mapped = {m.key: m.value for m in sheet.metadata_entries}
-        for key, value in core_updates.items():
-            if value.strip():
-                mapped[key] = value.strip()
-            else:
-                mapped.pop(key, None)
+    # --- Update index from the written PDF ---
+    raw = extract_pdf_metadata(updated_pdf)
+    mapped = map_raw_to_core(raw)
 
     # Delete existing metadata entries and replace
     for entry in list(sheet.metadata_entries):
