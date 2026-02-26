@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getSheet, getSheetPDF, getPdfMetadata, type SheetRecord } from '../api'
+import { getSheet, getSheetPDF, getPdfMetadata, updateSheetMetadata, type SheetRecord } from '../api'
 import * as pdfjsLib from 'pdfjs-dist'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -27,14 +27,61 @@ const pagesRef = ref<HTMLElement | null>(null)
 const canvasLeftRef = ref<HTMLCanvasElement | null>(null)
 const canvasRightRef = ref<HTMLCanvasElement | null>(null)
 
-const coreFields = [
+const editableFields = [
   { key: 'title', label: 'Title' },
   { key: 'composer', label: 'Composer' },
   { key: 'genre', label: 'Genre' },
   { key: 'key', label: 'Key' },
   { key: 'tags', label: 'Tags' },
+]
+
+const coreFields = [
+  ...editableFields,
   { key: 'pages', label: 'Pages' },
 ]
+
+// Editable form state
+const editForm = reactive<Record<string, string>>({
+  title: '',
+  composer: '',
+  genre: '',
+  key: '',
+  tags: '',
+})
+const saving = ref(false)
+const saveError = ref('')
+const saveSuccess = ref(false)
+
+function populateEditForm(metadata: Record<string, string>) {
+  for (const field of editableFields) {
+    editForm[field.key] = metadata[field.key] || ''
+  }
+}
+
+async function saveMetadata() {
+  if (!sheet.value) return
+  saving.value = true
+  saveError.value = ''
+  saveSuccess.value = false
+  try {
+    const result = await updateSheetMetadata(sheet.value.id, { ...editForm })
+    // Update local sheet metadata
+    sheet.value.metadata = result.metadata
+    saveSuccess.value = true
+    // Re-fetch raw metadata to reflect changes
+    try {
+      const rawResult = await getPdfMetadata(sheet.value.id)
+      pdfMeta.value = rawResult.metadata
+    } catch {
+      // Non-critical — raw section will show stale data
+    }
+    setTimeout(() => { saveSuccess.value = false }, 2000)
+  } catch (e: any) {
+    saveError.value = e.message
+  } finally {
+    saving.value = false
+  }
+}
 
 let pdfDoc: pdfjsLib.PDFDocumentProxy | null = null
 
@@ -117,6 +164,10 @@ function onFullscreenChange() {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  // Don't intercept keyboard shortcuts when typing in form inputs
+  const tag = (e.target as HTMLElement)?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
   if (e.key === 'ArrowLeft') { prevSpread(); e.preventDefault() }
   if (e.key === 'ArrowRight') { nextSpread(); e.preventDefault() }
   if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); e.preventDefault() }
@@ -157,6 +208,7 @@ onMounted(async () => {
       getSheetPDF(sheetId),
     ])
     sheet.value = sheetData
+    populateEditForm(sheetData.metadata || {})
 
     pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise
     totalPages.value = pdfDoc.numPages
@@ -213,14 +265,30 @@ window.addEventListener('resize', () => {
           <canvas ref="canvasRightRef" class="page-canvas"></canvas>
         </div>
         <div v-if="showMeta" class="meta-panel">
-          <!-- Indexed core fields -->
+          <!-- Editable core fields -->
           <div class="meta-section">
             <h4 class="meta-heading">Sheet Info</h4>
             <div class="meta-fields">
-              <div v-for="field in coreFields" :key="field.key" class="meta-field">
+              <div v-for="field in editableFields" :key="field.key" class="meta-field">
                 <label>{{ field.label }}</label>
-                <span class="meta-value">{{ sheet?.metadata?.[field.key] || '—' }}</span>
+                <input
+                  type="text"
+                  v-model="editForm[field.key]"
+                  :placeholder="field.label"
+                />
               </div>
+              <!-- Pages (read-only) -->
+              <div class="meta-field">
+                <label>Pages</label>
+                <input type="text" :value="sheet?.metadata?.pages || '—'" readonly class="readonly" />
+              </div>
+            </div>
+            <div class="meta-actions">
+              <button class="save-btn" @click="saveMetadata" :disabled="saving">
+                {{ saving ? 'Saving...' : 'Save' }}
+              </button>
+              <span v-if="saveSuccess" class="save-ok">Saved</span>
+              <span v-if="saveError" class="save-err">{{ saveError }}</span>
             </div>
           </div>
           <!-- Raw PDF metadata -->
@@ -411,21 +479,61 @@ window.addEventListener('resize', () => {
   word-break: break-all;
 }
 
-.meta-value {
-  display: block;
-  color: #eee;
-  font-size: 0.85rem;
-  padding: 0.2rem 0;
-}
-
 .meta-field input {
   width: 100%;
   padding: 0.35rem 0.5rem;
-  background: #444;
-  border: 1px solid #555;
+  background: #3a3a3a;
+  border: 1px solid #666;
   border-radius: 4px;
-  color: #bbb;
+  color: #eee;
   font-size: 0.85rem;
   box-sizing: border-box;
+}
+
+.meta-field input:focus {
+  outline: none;
+  border-color: #4285f4;
+}
+
+.meta-field input.readonly {
+  background: #444;
+  border-color: #555;
+  color: #bbb;
+}
+
+.meta-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.save-btn {
+  background: #4285f4;
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  padding: 0.4rem 1rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: #3367d6;
+}
+
+.save-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.save-ok {
+  color: #66bb6a;
+  font-size: 0.85rem;
+}
+
+.save-err {
+  color: #ef5350;
+  font-size: 0.85rem;
 }
 </style>
