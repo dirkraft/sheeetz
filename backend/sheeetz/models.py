@@ -14,6 +14,7 @@ class User(Base):
     email = Column(String, nullable=False)
     name = Column(String, nullable=False)
     drive_token_json = Column(Text, nullable=True)
+    settings_json = Column(Text, nullable=True)
 
     sheets = relationship("Sheet", back_populates="user", cascade="all, delete-orphan")
     library_folders = relationship("LibraryFolder", back_populates="user", cascade="all, delete-orphan")

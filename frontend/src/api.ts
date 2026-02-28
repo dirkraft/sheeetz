@@ -17,6 +17,23 @@ export async function getMe() {
   return apiFetch<{ id: number; email: string; name: string }>('/auth/me')
 }
 
+// --- Settings ---
+
+export interface UserSettings {
+  columns: string[]
+}
+
+export async function getSettings() {
+  return apiFetch<UserSettings>('/auth/settings')
+}
+
+export async function updateSettings(settings: Partial<UserSettings>) {
+  return apiFetch<UserSettings>('/auth/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(settings),
+  })
+}
+
 // --- Sheet types ---
 
 export interface SheetRecord {
