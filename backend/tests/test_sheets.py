@@ -118,6 +118,51 @@ async def test_meta_filters_no_match(client):
     assert data["total"] == 0
 
 
+async def test_distinct_metadata_values(client):
+    """GET /sheets/metadata/distinct returns unique values for a given key."""
+    await _scan_fixtures(client)
+
+    resp = await client.get("/sheets/metadata/distinct", params={"key": "composer"})
+    assert resp.status_code == 200
+    values = resp.json()["values"]
+    assert "Ludwig van Beethoven" in values
+    assert "Johann Sebastian Bach" in values
+
+
+async def test_distinct_metadata_values_with_query(client):
+    """Substring filter narrows results (case-insensitive)."""
+    await _scan_fixtures(client)
+
+    resp = await client.get("/sheets/metadata/distinct", params={"key": "composer", "q": "bach"})
+    assert resp.status_code == 200
+    values = resp.json()["values"]
+    assert values == ["Johann Sebastian Bach"]
+
+
+async def test_distinct_metadata_values_no_match(client):
+    """Non-matching query returns empty list."""
+    await _scan_fixtures(client)
+
+    resp = await client.get("/sheets/metadata/distinct", params={"key": "composer", "q": "chopin"})
+    assert resp.status_code == 200
+    assert resp.json()["values"] == []
+
+
+async def test_distinct_metadata_values_empty_key(client):
+    """Unknown key returns empty list."""
+    await _scan_fixtures(client)
+
+    resp = await client.get("/sheets/metadata/distinct", params={"key": "nonexistent"})
+    assert resp.status_code == 200
+    assert resp.json()["values"] == []
+
+
+async def test_distinct_metadata_values_requires_key(client):
+    """Missing key param returns 422."""
+    resp = await client.get("/sheets/metadata/distinct")
+    assert resp.status_code == 422
+
+
 async def _get_sample_sheet_id(client):
     """Helper: scan fixtures and return sample.pdf's sheet ID."""
     data = await _scan_fixtures(client)

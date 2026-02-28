@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getSheet, getSheetPDF, getPdfMetadata, updateSheetMetadata, type SheetRecord } from '../api'
+import { getSheet, getSheetPDF, getPdfMetadata, updateSheetMetadata, getMetadataValues, type SheetRecord } from '../api'
+import AutocompleteInput from '../components/AutocompleteInput.vue'
 import * as pdfjsLib from 'pdfjs-dist'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -271,10 +272,10 @@ window.addEventListener('resize', () => {
             <div class="meta-fields">
               <div v-for="field in editableFields" :key="field.key" class="meta-field">
                 <label>{{ field.label }}</label>
-                <input
-                  type="text"
+                <AutocompleteInput
                   v-model="editForm[field.key]"
                   :placeholder="field.label"
+                  :fetchSuggestions="(q: string) => getMetadataValues(field.key, q).then(r => r.values)"
                 />
               </div>
               <!-- Pages (read-only) -->
