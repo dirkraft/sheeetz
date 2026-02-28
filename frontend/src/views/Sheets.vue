@@ -22,8 +22,6 @@ const ALL_COLUMNS: ColumnDef[] = [
   { key: 'filename', label: 'Filename', sortKey: 'filename', render: (s) => s.filename },
   { key: 'title', label: 'Title', render: (s) => s.metadata?.title || '\u2014' },
   { key: 'composer', label: 'Composer', render: (s) => s.metadata?.composer || '\u2014' },
-  { key: 'genre', label: 'Genre', render: (s) => s.metadata?.genre || '\u2014' },
-  { key: 'key', label: 'Key', render: (s) => s.metadata?.key || '\u2014' },
   { key: 'tags', label: 'Tags', render: (s) => s.metadata?.tags || '\u2014' },
   { key: 'pages', label: 'Pages', render: (s) => s.metadata?.pages || '\u2014' },
   { key: 'folder', label: 'Folder', sortKey: 'folder_path', render: (s) => s.folder_path || '\u2014' },
@@ -121,7 +119,6 @@ const pageSize = 50
 const filterFilename = ref('')
 const filterFolderId = ref<number | null>(null)
 const filterComposer = ref('')
-const filterGenre = ref('')
 const sortBy = ref('filename')
 const sortDir = ref<'asc' | 'desc'>('asc')
 
@@ -137,7 +134,6 @@ async function load() {
   try {
     const metaFilters: Record<string, string> = {}
     if (filterComposer.value) metaFilters.composer = filterComposer.value
-    if (filterGenre.value) metaFilters.genre = filterGenre.value
 
     const data = await getSheets({
       filename: filterFilename.value || undefined,
@@ -167,7 +163,6 @@ function debouncedLoad() {
 
 watch(filterFilename, debouncedLoad)
 watch(filterComposer, debouncedLoad)
-watch(filterGenre, debouncedLoad)
 watch([filterFolderId, sortBy, sortDir], () => {
   page.value = 1
   load()
@@ -264,12 +259,6 @@ function sortIndicator(col: ColumnDef) {
         v-model="filterComposer"
         type="text"
         placeholder="Composer..."
-        class="filter-input filter-short"
-      />
-      <input
-        v-model="filterGenre"
-        type="text"
-        placeholder="Genre..."
         class="filter-input filter-short"
       />
       <select v-model="filterFolderId" class="filter-select">

@@ -16,7 +16,6 @@ from ..storage.drive_api import (
     upload_file_content,
 )
 from ..storage.metadata import (
-    EDITABLE_CORE_KEYS,
     extract_pdf_metadata,
     map_raw_to_core,
     write_pdf_metadata,
@@ -24,6 +23,27 @@ from ..storage.metadata import (
 from .auth import get_current_user
 
 router = APIRouter(prefix="/sheets", tags=["sheets"])
+
+
+@router.get("/metadata/keys")
+async def distinct_metadata_keys(
+    q: str | None = Query(None, description="Substring filter (case-insensitive)"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return distinct metadata key names across the user's sheets."""
+    query = (
+        select(SheetMeta.key)
+        .join(Sheet, SheetMeta.sheet_id == Sheet.id)
+        .where(Sheet.user_id == user.id, SheetMeta.key != "pages")
+        .distinct()
+    )
+    if q:
+        query = query.where(SheetMeta.key.ilike(f"%{q}%"))
+    query = query.order_by(SheetMeta.key).limit(20)
+    result = await db.execute(query)
+    keys = [row[0] for row in result.all()]
+    return {"keys": keys}
 
 
 @router.get("/metadata/distinct")
@@ -243,8 +263,8 @@ async def update_metadata(
     if not sheet:
         raise HTTPException(status_code=404, detail="Sheet not found")
 
-    # Only accept editable core keys
-    core_updates = {k: v for k, v in metadata.items() if k in EDITABLE_CORE_KEYS}
+    # Accept all keys except 'pages' (auto-derived from PDF page count)
+    core_updates = {k: v for k, v in metadata.items() if k != "pages"}
 
     # --- Write to PDF ---
     if sheet.backend_type == "local":

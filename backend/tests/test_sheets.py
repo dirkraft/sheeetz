@@ -71,12 +71,10 @@ async def test_scan_extracts_metadata(client):
     sample = sheets_by_name["sample.pdf"]
     assert sample["metadata"]["composer"] == "Ludwig van Beethoven"
     assert sample["metadata"]["title"] == "Sonata No. 14"
-    assert sample["metadata"]["genre"] == "Classical"
     assert sample["metadata"]["pages"] == "1"
 
     nested = sheets_by_name["nested.pdf"]
     assert nested["metadata"]["composer"] == "Johann Sebastian Bach"
-    assert nested["metadata"]["genre"] == "Baroque"
 
 
 async def test_meta_filters_composer(client):
@@ -94,15 +92,15 @@ async def test_meta_filters_multiple(client):
     """meta_filters with multiple keys uses AND semantics."""
     await _scan_fixtures(client)
 
-    # Beethoven + Classical → should match sample.pdf
-    filters = json.dumps({"composer": "Beethoven", "genre": "Classical"})
+    # Beethoven + Sonata title → should match sample.pdf
+    filters = json.dumps({"composer": "Beethoven", "title": "Sonata"})
     resp = await client.get("/sheets", params={"meta_filters": filters})
     data = resp.json()
     assert data["total"] == 1
     assert data["sheets"][0]["filename"] == "sample.pdf"
 
-    # Beethoven + Baroque → should match nothing
-    filters = json.dumps({"composer": "Beethoven", "genre": "Baroque"})
+    # Beethoven + wrong title → should match nothing
+    filters = json.dumps({"composer": "Beethoven", "title": "Nocturne"})
     resp = await client.get("/sheets", params={"meta_filters": filters})
     data = resp.json()
     assert data["total"] == 0
@@ -177,13 +175,12 @@ async def test_update_metadata_writes_to_pdf_and_index(client):
 
     resp = await client.patch(
         f"/sheets/{sheet_id}/metadata",
-        json={"composer": "Wolfgang Amadeus Mozart", "genre": "Classical", "key": "C Major"},
+        json={"composer": "Wolfgang Amadeus Mozart", "tags": "classical, piano"},
     )
     assert resp.status_code == 200
     data = resp.json()
     assert data["metadata"]["composer"] == "Wolfgang Amadeus Mozart"
-    assert data["metadata"]["genre"] == "Classical"
-    assert data["metadata"]["key"] == "C Major"
+    assert data["metadata"]["tags"] == "classical, piano"
     # Pages should still be present (auto-derived)
     assert data["metadata"]["pages"] == "1"
 
@@ -241,18 +238,17 @@ async def test_update_metadata_preserves_original_pdf_metadata(client):
     assert raw.get("{http://sheeetz.app/meta/1.0/}composer") == "Edited Composer"
 
 
-async def test_update_metadata_ignores_non_core_keys(client):
-    """Non-editable keys like 'pages' or arbitrary keys should be ignored."""
+async def test_update_metadata_pages_cannot_be_overwritten(client):
+    """'pages' is auto-derived and should not be overwritable."""
     sheet_id = await _get_sample_sheet_id(client)
 
     resp = await client.patch(
         f"/sheets/{sheet_id}/metadata",
-        json={"pages": "999", "random_field": "ignored"},
+        json={"pages": "999"},
     )
     assert resp.status_code == 200
     # Pages should stay at actual value, not 999
     assert resp.json()["metadata"]["pages"] == "1"
-    assert "random_field" not in resp.json()["metadata"]
 
 
 async def test_edit_title_survives_reload(client):
@@ -273,8 +269,6 @@ async def test_edit_title_survives_reload(client):
         json={
             "title": "My Custom Title",
             "composer": "Ludwig van Beethoven",
-            "genre": "Classical",
-            "key": "",
             "tags": "piano, sonata, moonlight",
         },
     )
@@ -289,3 +283,79 @@ async def test_edit_title_survives_reload(client):
     assert raw["{http://sheeetz.app/meta/1.0/}title"] == "My Custom Title"
     # Original dc:title should still be there
     assert raw["{http://purl.org/dc/elements/1.1/}title"] == "Sonata No. 14"
+
+
+async def test_arbitrary_key_persists(client):
+    """PATCH with an arbitrary key like 'arranger' should persist in index and PDF."""
+    sheet_id = await _get_sample_sheet_id(client)
+
+    resp = await client.patch(
+        f"/sheets/{sheet_id}/metadata",
+        json={"arranger": "John Doe"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["metadata"]["arranger"] == "John Doe"
+
+    # Verify it survives a reload
+    resp2 = await client.get(f"/sheets/{sheet_id}")
+    assert resp2.json()["metadata"]["arranger"] == "John Doe"
+
+    # Verify it's in the raw PDF metadata under sheeetz namespace
+    resp3 = await client.get(f"/sheets/{sheet_id}/pdf-metadata")
+    raw = resp3.json()["metadata"]
+    assert raw["{http://sheeetz.app/meta/1.0/}arranger"] == "John Doe"
+
+
+async def test_arbitrary_key_blank_removes(client):
+    """Setting an arbitrary key to blank should remove it."""
+    sheet_id = await _get_sample_sheet_id(client)
+
+    # First set it
+    await client.patch(
+        f"/sheets/{sheet_id}/metadata",
+        json={"transcriber": "Jane Smith"},
+    )
+    resp = await client.get(f"/sheets/{sheet_id}")
+    assert resp.json()["metadata"]["transcriber"] == "Jane Smith"
+
+    # Now blank it out
+    resp2 = await client.patch(
+        f"/sheets/{sheet_id}/metadata",
+        json={"transcriber": ""},
+    )
+    assert "transcriber" not in resp2.json()["metadata"]
+
+
+async def test_distinct_keys_endpoint(client):
+    """GET /sheets/metadata/keys returns distinct key names."""
+    sheet_id = await _get_sample_sheet_id(client)
+
+    # Add a custom field
+    await client.patch(
+        f"/sheets/{sheet_id}/metadata",
+        json={"arranger": "Someone"},
+    )
+
+    resp = await client.get("/sheets/metadata/keys")
+    assert resp.status_code == 200
+    keys = resp.json()["keys"]
+    assert "arranger" in keys
+    assert "composer" in keys
+    # pages should be excluded
+    assert "pages" not in keys
+
+
+async def test_distinct_keys_with_query_filter(client):
+    """Substring filter narrows key results."""
+    sheet_id = await _get_sample_sheet_id(client)
+
+    await client.patch(
+        f"/sheets/{sheet_id}/metadata",
+        json={"arranger": "Someone"},
+    )
+
+    resp = await client.get("/sheets/metadata/keys", params={"q": "arr"})
+    assert resp.status_code == 200
+    keys = resp.json()["keys"]
+    assert "arranger" in keys
+    assert "composer" not in keys
