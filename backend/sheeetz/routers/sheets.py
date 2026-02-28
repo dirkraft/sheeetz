@@ -26,6 +26,28 @@ from .auth import get_current_user
 router = APIRouter(prefix="/sheets", tags=["sheets"])
 
 
+@router.get("/metadata/distinct")
+async def distinct_metadata_values(
+    key: str = Query(..., description="Metadata key to get distinct values for"),
+    q: str | None = Query(None, description="Substring filter (case-insensitive)"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return distinct values for a given metadata key, scoped to the current user."""
+    query = (
+        select(SheetMeta.value)
+        .join(Sheet, SheetMeta.sheet_id == Sheet.id)
+        .where(Sheet.user_id == user.id, SheetMeta.key == key)
+        .distinct()
+    )
+    if q:
+        query = query.where(SheetMeta.value.ilike(f"%{q}%"))
+    query = query.order_by(SheetMeta.value).limit(20)
+    result = await db.execute(query)
+    values = [row[0] for row in result.all()]
+    return {"values": values}
+
+
 @router.get("")
 async def list_sheets(
     folder_id: int | None = None,

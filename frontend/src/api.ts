@@ -106,6 +106,12 @@ export interface MetadataUpdateResult {
   metadata: Record<string, string>
 }
 
+export async function getMetadataValues(key: string, query?: string) {
+  const qs = new URLSearchParams({ key })
+  if (query) qs.set('q', query)
+  return apiFetch<{ values: string[] }>(`/sheets/metadata/distinct?${qs}`)
+}
+
 export async function updateSheetMetadata(sheetId: number, metadata: Record<string, string>) {
   return apiFetch<MetadataUpdateResult>(`/sheets/${sheetId}/metadata`, {
     method: 'PATCH',
