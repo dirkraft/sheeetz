@@ -10,3 +10,5 @@ e2e/playwright-report/
 e2e/storage-state.json
 e2e/auth.json
 e2e/test.db
+backend/tests/fixtures/
+backend/.vite/
