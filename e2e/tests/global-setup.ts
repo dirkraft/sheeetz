@@ -18,6 +18,10 @@ setup('seed database and save auth state', async ({ browser }) => {
   // Remove stale DB
   if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH)
 
+  // Generate fixture PDFs (they are gitignored, created at test time)
+  const generateScript = path.resolve(BACKEND_DIR, 'tests', 'generate_fixtures.py')
+  execSync(`${python} ${generateScript} ${FIXTURES_DIR}`, { encoding: 'utf-8' })
+
   // Run seed script to create DB and get auth token
   const out = execSync(
     `${python} ${SEED_SCRIPT} ${DB_PATH} ${FIXTURES_DIR} ${SECRET_KEY}`,
