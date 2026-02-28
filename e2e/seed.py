@@ -21,7 +21,8 @@ conn.execute("""
         google_id TEXT UNIQUE NOT NULL,
         email TEXT NOT NULL,
         name TEXT NOT NULL,
-        drive_token_json TEXT
+        drive_token_json TEXT,
+        settings_json TEXT
     )
 """)
 conn.execute("""
