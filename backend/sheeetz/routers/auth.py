@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Cookie, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -81,6 +81,31 @@ async def callback(code: str, db: AsyncSession = Depends(get_db)):
 @router.get("/me")
 async def me(user: User = Depends(get_current_user)):
     return {"id": user.id, "email": user.email, "name": user.name}
+
+
+DEFAULT_SETTINGS = {
+    "columns": ["filename", "composer", "folder", "source"],
+}
+
+
+@router.get("/settings")
+async def get_settings(user: User = Depends(get_current_user)):
+    if user.settings_json:
+        return {**DEFAULT_SETTINGS, **json.loads(user.settings_json)}
+    return DEFAULT_SETTINGS
+
+
+@router.patch("/settings")
+async def patch_settings(
+    body: dict = Body(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    current = json.loads(user.settings_json) if user.settings_json else {}
+    current.update(body)
+    user.settings_json = json.dumps(current)
+    await db.commit()
+    return {**DEFAULT_SETTINGS, **current}
 
 
 @router.get("/logout")
