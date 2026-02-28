@@ -125,7 +125,18 @@ async def list_sheets(
                 & (meta_alias.value.ilike(f"%{field_value}%")),
             )
 
-    sort_col = Sheet.filename if sort_by == "filename" else Sheet.folder_path
+    # Sorting: direct columns use the model attribute; anything else is a metadata key
+    direct_sort_cols = {"filename": Sheet.filename, "folder_path": Sheet.folder_path}
+    if sort_by in direct_sort_cols:
+        sort_col = direct_sort_cols[sort_by]
+    else:
+        # Sort by metadata value via LEFT JOIN
+        sort_meta = aliased(SheetMeta)
+        query = query.outerjoin(
+            sort_meta,
+            (sort_meta.sheet_id == Sheet.id) & (sort_meta.key == sort_by),
+        )
+        sort_col = sort_meta.value
     query = query.order_by(sort_col.asc() if sort_dir == "asc" else sort_col.desc())
 
     count_q = select(func.count()).select_from(query.subquery())

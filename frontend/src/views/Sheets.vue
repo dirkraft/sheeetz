@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   getSheets, getSelectedFolders, getSettings, updateSettings,
+  getMetadataKeys,
   type SheetRecord, type LibraryFolder,
 } from '../api'
 
@@ -16,30 +17,54 @@ interface ColumnDef {
   sortKey?: string
   render: (s: SheetRecord) => string
   isSource?: boolean
+  isCustom?: boolean
 }
 
-const ALL_COLUMNS: ColumnDef[] = [
+const STATIC_COLUMNS: ColumnDef[] = [
   { key: 'filename', label: 'Filename', sortKey: 'filename', render: (s) => s.filename },
-  { key: 'title', label: 'Title', render: (s) => s.metadata?.title || '\u2014' },
-  { key: 'composer', label: 'Composer', render: (s) => s.metadata?.composer || '\u2014' },
-  { key: 'tags', label: 'Tags', render: (s) => s.metadata?.tags || '\u2014' },
-  { key: 'pages', label: 'Pages', render: (s) => s.metadata?.pages || '\u2014' },
+  { key: 'title', label: 'Title', sortKey: 'title', render: (s) => s.metadata?.title || '\u2014' },
+  { key: 'composer', label: 'Composer', sortKey: 'composer', render: (s) => s.metadata?.composer || '\u2014' },
+  { key: 'tags', label: 'Tags', sortKey: 'tags', render: (s) => s.metadata?.tags || '\u2014' },
+  { key: 'pages', label: 'Pages', sortKey: 'pages', render: (s) => s.metadata?.pages || '\u2014' },
   { key: 'folder', label: 'Folder', sortKey: 'folder_path', render: (s) => s.folder_path || '\u2014' },
-  { key: 'source', label: 'Source', isSource: true, render: (s) => s.backend_type === 'local' ? 'Local' : 'Drive' },
+  { key: 'source', label: 'Source', sortKey: 'backend_type', isSource: true, render: (s) => s.backend_type === 'local' ? 'Local' : 'Drive' },
 ]
 
-const columnMap = Object.fromEntries(ALL_COLUMNS.map((c) => [c.key, c]))
+const STATIC_KEYS = new Set(STATIC_COLUMNS.map((c) => c.key))
 
-const ALL_KEYS = ALL_COLUMNS.map((c) => c.key)
+function makeCustomColumn(key: string): ColumnDef {
+  const label = key.charAt(0).toUpperCase() + key.slice(1)
+  return { key, label, sortKey: key, isCustom: true, render: (s) => s.metadata?.[key] || '\u2014' }
+}
+
+const customColumns = ref<ColumnDef[]>([])
+
+const allColumns = computed(() => [...STATIC_COLUMNS, ...customColumns.value])
+const columnMap = computed(() => Object.fromEntries(allColumns.value.map((c) => [c.key, c])))
+const allKeys = computed(() => allColumns.value.map((c) => c.key))
+
 const DEFAULT_COLUMNS = ['filename', 'composer', 'folder', 'source']
 
 // columnOrder: all keys in display order (active first, then inactive)
-const columnOrder = ref<string[]>([...ALL_KEYS])
+const columnOrder = ref<string[]>(STATIC_COLUMNS.map((c) => c.key))
 const activeSet = ref(new Set<string>(DEFAULT_COLUMNS))
 
 const activeColumns = computed(() =>
-  columnOrder.value.filter((k) => activeSet.value.has(k)).map((k) => columnMap[k]).filter(Boolean)
+  columnOrder.value.filter((k) => activeSet.value.has(k)).map((k) => columnMap.value[k]).filter(Boolean)
 )
+
+function mergeCustomKeys(keys: string[]) {
+  const existingCustomKeys = new Set(customColumns.value.map((c) => c.key))
+  const newKeys = keys.filter((k) => !STATIC_KEYS.has(k) && !existingCustomKeys.has(k))
+  if (!newKeys.length) return
+  customColumns.value = [...customColumns.value, ...newKeys.map(makeCustomColumn)]
+  // Add new custom keys to columnOrder (at end) if not already present
+  const orderSet = new Set(columnOrder.value)
+  const toAdd = newKeys.filter((k) => !orderSet.has(k))
+  if (toAdd.length) {
+    columnOrder.value = [...columnOrder.value, ...toAdd]
+  }
+}
 
 const showColumnPicker = ref(false)
 
@@ -146,6 +171,14 @@ async function load() {
     })
     sheets.value = data.sheets
     total.value = data.total
+    // Discover any new custom metadata keys from loaded sheets
+    const discoveredKeys = new Set<string>()
+    for (const s of data.sheets) {
+      if (s.metadata) {
+        for (const k of Object.keys(s.metadata)) discoveredKeys.add(k)
+      }
+    }
+    mergeCustomKeys([...discoveredKeys])
   } catch (e: any) {
     error.value = e.message
   } finally {
@@ -170,14 +203,22 @@ watch([filterFolderId, sortBy, sortDir], () => {
 watch(page, load)
 
 onMounted(async () => {
+  // Fetch custom metadata keys so dynamic columns are available before restoring settings
+  try {
+    const { keys } = await getMetadataKeys()
+    mergeCustomKeys(keys)
+  } catch {
+    // custom columns will be empty until sheets load
+  }
+
   try {
     const settings = await getSettings()
     if (settings.columns?.length) {
-      const saved = settings.columns.filter((k: string) => columnMap[k])
+      const saved = settings.columns.filter((k: string) => columnMap.value[k])
       if (saved.length) {
         activeSet.value = new Set(saved)
         // Active columns first in saved order, then remaining keys
-        const remaining = ALL_KEYS.filter((k) => !activeSet.value.has(k))
+        const remaining = allKeys.value.filter((k) => !activeSet.value.has(k))
         columnOrder.value = [...saved, ...remaining]
       }
     }
@@ -242,6 +283,7 @@ function sortIndicator(col: ColumnDef) {
                 @change="toggleColumn(key)"
               />
               {{ columnMap[key].label }}
+              <span v-if="columnMap[key].isCustom" class="custom-tag">custom</span>
             </label>
           </div>
         </div>
@@ -402,6 +444,13 @@ function sortIndicator(col: ColumnDef) {
   gap: 0.4rem;
   cursor: pointer;
   flex: 1;
+}
+
+.custom-tag {
+  font-size: 0.65rem;
+  color: #888;
+  font-style: italic;
+  margin-left: 0.2rem;
 }
 
 .filters {
