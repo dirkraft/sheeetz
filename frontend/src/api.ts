@@ -106,6 +106,12 @@ export interface MetadataUpdateResult {
   metadata: Record<string, string>
 }
 
+export async function getMetadataKeys(query?: string) {
+  const qs = new URLSearchParams()
+  if (query) qs.set('q', query)
+  return apiFetch<{ keys: string[] }>(`/sheets/metadata/keys?${qs}`)
+}
+
 export async function getMetadataValues(key: string, query?: string) {
   const qs = new URLSearchParams({ key })
   if (query) qs.set('q', query)

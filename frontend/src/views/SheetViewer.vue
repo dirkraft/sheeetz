@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getSheet, getSheetPDF, getPdfMetadata, updateSheetMetadata, getMetadataValues, type SheetRecord } from '../api'
+import { getSheet, getSheetPDF, getPdfMetadata, updateSheetMetadata, getMetadataValues, getMetadataKeys, type SheetRecord } from '../api'
 import AutocompleteInput from '../components/AutocompleteInput.vue'
 import * as pdfjsLib from 'pdfjs-dist'
 
@@ -31,8 +31,6 @@ const canvasRightRef = ref<HTMLCanvasElement | null>(null)
 const editableFields = [
   { key: 'title', label: 'Title' },
   { key: 'composer', label: 'Composer' },
-  { key: 'genre', label: 'Genre' },
-  { key: 'key', label: 'Key' },
   { key: 'tags', label: 'Tags' },
 ]
 
@@ -45,18 +43,31 @@ const coreFields = [
 const editForm = reactive<Record<string, string>>({
   title: '',
   composer: '',
-  genre: '',
-  key: '',
   tags: '',
 })
+const customFields = ref<Array<{ key: string; value: string }>>([])
 const saving = ref(false)
 const saveError = ref('')
 const saveSuccess = ref(false)
+
+const coreKeySet = new Set([...editableFields.map(f => f.key), 'pages'])
 
 function populateEditForm(metadata: Record<string, string>) {
   for (const field of editableFields) {
     editForm[field.key] = metadata[field.key] || ''
   }
+  // Populate custom fields from metadata keys not in core set
+  customFields.value = Object.entries(metadata)
+    .filter(([k]) => !coreKeySet.has(k))
+    .map(([k, v]) => ({ key: k, value: v }))
+}
+
+function addCustomField() {
+  customFields.value.push({ key: '', value: '' })
+}
+
+function removeCustomField(index: number) {
+  customFields.value.splice(index, 1)
 }
 
 async function saveMetadata() {
@@ -65,9 +76,17 @@ async function saveMetadata() {
   saveError.value = ''
   saveSuccess.value = false
   try {
-    const result = await updateSheetMetadata(sheet.value.id, { ...editForm })
-    // Update local sheet metadata
+    // Merge core fields and custom fields into one payload
+    const payload: Record<string, string> = { ...editForm }
+    for (const cf of customFields.value) {
+      const k = cf.key.trim()
+      if (!k) continue
+      payload[k] = cf.value
+    }
+    const result = await updateSheetMetadata(sheet.value.id, payload)
+    // Update local sheet metadata and re-populate forms
     sheet.value.metadata = result.metadata
+    populateEditForm(result.metadata)
     saveSuccess.value = true
     // Re-fetch raw metadata to reflect changes
     try {
@@ -291,6 +310,30 @@ window.addEventListener('resize', () => {
               <span v-if="saveSuccess" class="save-ok">Saved</span>
               <span v-if="saveError" class="save-err">{{ saveError }}</span>
             </div>
+          </div>
+          <!-- Custom fields -->
+          <div class="meta-section">
+            <h4 class="meta-heading">Custom Fields</h4>
+            <div class="meta-fields">
+              <div v-for="(cf, idx) in customFields" :key="idx" class="custom-field-row">
+                <div class="custom-field-key">
+                  <AutocompleteInput
+                    v-model="cf.key"
+                    placeholder="Field name"
+                    :fetchSuggestions="(q: string) => getMetadataKeys(q).then(r => r.keys.filter(k => !coreKeySet.has(k)))"
+                  />
+                </div>
+                <div class="custom-field-value">
+                  <AutocompleteInput
+                    v-model="cf.value"
+                    placeholder="Value"
+                    :fetchSuggestions="(q: string) => cf.key ? getMetadataValues(cf.key, q).then(r => r.values) : Promise.resolve([])"
+                  />
+                </div>
+                <button class="remove-field-btn" @click="removeCustomField(idx)" title="Remove field">&times;</button>
+              </div>
+            </div>
+            <button class="add-field-btn" @click="addCustomField">+ Add Field</button>
           </div>
           <!-- Raw PDF metadata -->
           <div class="meta-section">
@@ -536,5 +579,53 @@ window.addEventListener('resize', () => {
 .save-err {
   color: #ef5350;
   font-size: 0.85rem;
+}
+
+.custom-field-row {
+  display: flex;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
+.custom-field-key {
+  flex: 2;
+  min-width: 0;
+}
+
+.custom-field-value {
+  flex: 3;
+  min-width: 0;
+}
+
+.remove-field-btn {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.remove-field-btn:hover {
+  color: #ef5350;
+}
+
+.add-field-btn {
+  background: none;
+  border: 1px dashed #666;
+  color: #aaa;
+  border-radius: 4px;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+  width: 100%;
+}
+
+.add-field-btn:hover {
+  border-color: #888;
+  color: #ccc;
 }
 </style>

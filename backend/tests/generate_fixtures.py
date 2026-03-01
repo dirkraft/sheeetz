@@ -10,7 +10,17 @@ from pathlib import Path
 import pikepdf
 
 
-def _generate_fixture_pdf(path: Path, title: str = "", author: str = "", subject: str = "", keywords: str = "") -> None:
+SHEEETZ_NS = "http://sheeetz.app/meta/1.0/"
+
+
+def _generate_fixture_pdf(
+    path: Path,
+    title: str = "",
+    author: str = "",
+    subject: str = "",
+    keywords: str = "",
+    custom: dict[str, str] | None = None,
+) -> None:
     """Generate a minimal valid PDF with metadata using pikepdf."""
     pdf = pikepdf.Pdf.new()
     pdf.add_blank_page(page_size=(612, 792))  # Letter size
@@ -23,6 +33,8 @@ def _generate_fixture_pdf(path: Path, title: str = "", author: str = "", subject
             xmp["dc:subject"] = subject
         if keywords:
             xmp["pdf:Keywords"] = keywords
+        for key, value in (custom or {}).items():
+            xmp[f"{{{SHEEETZ_NS}}}{key}"] = value
     pdf.save(path)
 
 
@@ -37,6 +49,7 @@ def generate(fixtures_dir: Path) -> None:
         author="Ludwig van Beethoven",
         subject="Classical",
         keywords="piano, sonata, moonlight",
+        custom={"genre": "Classical", "key": "C# Minor"},
     )
     _generate_fixture_pdf(
         subfolder / "nested.pdf",
@@ -44,6 +57,7 @@ def generate(fixtures_dir: Path) -> None:
         author="Johann Sebastian Bach",
         subject="Baroque",
         keywords="keyboard, prelude",
+        custom={"genre": "Baroque"},
     )
 
 
