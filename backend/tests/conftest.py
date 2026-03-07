@@ -1,4 +1,3 @@
-import json
 import os
 from pathlib import Path
 
@@ -51,6 +50,7 @@ async def seeded_db(db: AsyncSession):
         google_id="test-google-id",
         email=TEST_EMAIL,
         name="Test Agent",
+        drive_token_json='{"refresh_token":"fake-refresh-token"}',
     )
     db.add(user)
 
@@ -88,20 +88,6 @@ async def client(seeded_db: AsyncSession):
     app.dependency_overrides.clear()
 
 
-def has_drive_secrets() -> bool:
-    return bool(
-        os.environ.get("GOOGLE_CLIENT_ID")
-        and os.environ.get("GOOGLE_CLIENT_SECRET")
-        and os.environ.get("TEST_DRIVE_TOKEN_JSON")
-    )
-
-
-skip_without_drive = pytest.mark.skipif(
-    not has_drive_secrets(),
-    reason="Drive secrets not available",
-)
-
-
 @pytest_asyncio.fixture
 async def unauth_client(seeded_db: AsyncSession):
     """HTTP client without auth cookies."""
@@ -111,36 +97,5 @@ async def unauth_client(seeded_db: AsyncSession):
     app.dependency_overrides[get_db] = override_get_db
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
-        yield c
-    app.dependency_overrides.clear()
-
-
-@pytest_asyncio.fixture
-async def drive_db(db: AsyncSession):
-    """DB with test user seeded with real Drive tokens."""
-    token_json = os.environ.get("TEST_DRIVE_TOKEN_JSON", "{}")
-    user = User(
-        id=2,
-        google_id="test-google-id",
-        email=TEST_EMAIL,
-        name="Test Agent",
-        drive_token_json=token_json,
-    )
-    db.add(user)
-    await db.commit()
-    return db
-
-
-@pytest_asyncio.fixture
-async def drive_client(drive_db: AsyncSession):
-    """HTTP client with Drive-capable test user."""
-    async def override_get_db():
-        yield drive_db
-
-    app.dependency_overrides[get_db] = override_get_db
-    transport = ASGITransport(app=app)
-    async with AsyncClient(
-        transport=transport, base_url="http://test", cookies=_auth_cookies()
-    ) as c:
         yield c
     app.dependency_overrides.clear()
