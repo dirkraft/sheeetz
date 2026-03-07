@@ -12,3 +12,4 @@ e2e/auth.json
 e2e/test.db
 backend/tests/fixtures/
 backend/.vite/
+backend/sheeetz.egg-info/
