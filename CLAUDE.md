@@ -62,7 +62,7 @@ Google OAuth 2.0 with `itsdangerous` session cookies. `get_current_user` FastAPI
 - **API tests** use in-memory SQLite and `pytest-asyncio` (auto mode). Fixtures in `conftest.py` provide `db`, `seeded_db`, `client`, etc.
 - **E2E tests** use Playwright with real pikepdf-generated PDF fixtures. `global-setup.ts` seeds the DB and injects auth cookies. The Playwright config spins up both backend (port 8001) and frontend (port 5174).
 - **Fixture PDFs** are generated at test time by `backend/tests/generate_fixtures.py` (gitignored). They include both standard XMP metadata and sheeetz-namespace custom fields.
-- Drive tests (`test_drive.py`) are skipped in CI unless Google secrets are configured.
+- Drive tests (`test_drive.py`) use `respx` to mock all Google API calls — no credentials needed.
 
 ### CI
 

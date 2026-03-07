@@ -125,7 +125,7 @@ cd backend
 pytest tests/ -v --ignore=tests/test_drive.py
 ```
 
-Uses in-memory SQLite. Drive tests are skipped unless `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `TEST_DRIVE_TOKEN_JSON` env vars are set.
+Uses in-memory SQLite. Drive API calls are mocked with `respx` — no Google credentials needed.
 
 ### E2E Tests
 
