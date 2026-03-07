@@ -127,15 +127,23 @@ export async function updateSheetMetadata(sheetId: number, metadata: Record<stri
 
 // --- Scan ---
 
-export interface ScanResult {
+export interface ScanStatus {
   folder_id: number
-  new_count: number
-  total_count: number
-  skipped_count: number
+  status: 'idle' | 'scanning' | 'complete' | 'error'
+  current_file?: string
+  processed?: number
+  new_count?: number
+  skipped_count?: number
+  total_count?: number
+  error?: string
 }
 
 export async function scanFolder(folderId: number) {
-  return apiFetch<ScanResult>(`/folders/${folderId}/scan`, { method: 'POST' })
+  return apiFetch<ScanStatus>(`/folders/${folderId}/scan`, { method: 'POST' })
+}
+
+export async function getScanStatus(folderId: number) {
+  return apiFetch<ScanStatus>(`/folders/${folderId}/scan-status`)
 }
 
 // --- Admin ---

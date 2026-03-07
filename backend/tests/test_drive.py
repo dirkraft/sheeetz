@@ -11,6 +11,8 @@ from httpx import Response
 
 from sheeetz.storage.drive_api import DRIVE_API, GOOGLE_TOKEN_URL
 
+from .conftest import wait_for_scan
+
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 FAKE_FOLDER_ID = "fake-folder-123"
 FAKE_FILE_ID = "fake-file-456"
@@ -129,7 +131,7 @@ async def test_scan_drive_folder(client):
     # Scan it
     resp = await client.post(f"/folders/{folder_id}/scan")
     assert resp.status_code == 200
-    data = resp.json()
+    data = await wait_for_scan(client, folder_id)
     assert data["new_count"] == 2
     assert data["total_count"] == 2
 
@@ -171,6 +173,7 @@ async def test_download_drive_pdf(client):
     )
     folder_id = resp.json()["id"]
     await client.post(f"/folders/{folder_id}/scan")
+    await wait_for_scan(client, folder_id)
 
     # Get first sheet
     sheets = await client.get("/sheets")
@@ -208,13 +211,15 @@ async def test_rescan_skips_existing(client):
     )
     folder_id = resp.json()["id"]
 
-    resp = await client.post(f"/folders/{folder_id}/scan")
-    assert resp.json()["new_count"] == 1
+    await client.post(f"/folders/{folder_id}/scan")
+    data = await wait_for_scan(client, folder_id)
+    assert data["new_count"] == 1
 
     # Rescan — should skip
-    resp = await client.post(f"/folders/{folder_id}/scan")
-    assert resp.json()["new_count"] == 0
-    assert resp.json()["skipped_count"] == 1
+    await client.post(f"/folders/{folder_id}/scan")
+    data = await wait_for_scan(client, folder_id)
+    assert data["new_count"] == 0
+    assert data["skipped_count"] == 1
 
 
 @respx.mock
@@ -243,6 +248,7 @@ async def test_drive_metadata_extracted(client):
     )
     folder_id = resp.json()["id"]
     await client.post(f"/folders/{folder_id}/scan")
+    await wait_for_scan(client, folder_id)
 
     sheets = await client.get("/sheets")
     sheet = sheets.json()["sheets"][0]

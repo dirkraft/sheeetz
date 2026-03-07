@@ -1,10 +1,15 @@
+import asyncio
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .. import db as db_module
 from ..db import get_db
 from ..models import LibraryFolder, User
+from ..scan_tasks import ScanTask, get_task, remove_task, start_task
 from ..storage.drive_api import (
     DriveTokenError,
     build_folder_path,
@@ -19,6 +24,8 @@ from ..storage.local import (
 )
 from ..config import settings
 from .auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/folders", tags=["folders"])
 
@@ -39,6 +46,69 @@ async def _refresh_and_get_token(user: User, db: AsyncSession) -> str:
         user.drive_token_json = updated_json
         await db.commit()
     return access_token
+
+
+def _task_response(task: ScanTask) -> dict:
+    resp: dict = {
+        "folder_id": task.folder_id,
+        "status": task.status,
+        "current_file": task.current_file,
+        "processed": task.processed,
+        "new_count": task.new_count,
+        "skipped_count": task.skipped_count,
+    }
+    if task.total_count is not None:
+        resp["total_count"] = task.total_count
+    if task.error:
+        resp["error"] = task.error
+    return resp
+
+
+async def _run_scan(user_id: int, folder_id: int, backend_type: str,
+                    backend_folder_id: str, access_token: str | None) -> None:
+    """Run a folder scan in the background, updating the in-memory task."""
+    task = get_task(user_id, folder_id)
+    if not task:
+        return
+
+    try:
+        async with db_module.background_session() as db:
+            # Re-fetch the folder in this session
+            result = await db.execute(
+                select(LibraryFolder).where(LibraryFolder.id == folder_id)
+            )
+            folder = result.scalar_one_or_none()
+            if not folder:
+                task.status = "error"
+                task.error = "Folder not found"
+                return
+
+            def on_progress(filename: str, processed: int, total: int | None) -> None:
+                task.current_file = filename
+                task.processed = processed
+                if total is not None:
+                    task.total_count = total
+
+            if backend_type == "local":
+                from ..storage.scanner import scan_local_folder
+                scan_result = await scan_local_folder(folder, db, on_progress)
+            else:
+                from ..storage.scanner import scan_gdrive_folder
+                scan_result = await scan_gdrive_folder(
+                    folder, access_token, db, on_progress
+                )
+
+            task.status = "complete"
+            task.current_file = ""
+            task.new_count = scan_result.new_count
+            task.total_count = scan_result.total_count
+            task.skipped_count = scan_result.skipped_count
+            task.processed = scan_result.total_count
+
+    except Exception as e:
+        logger.exception("Scan failed for folder %d", folder_id)
+        task.status = "error"
+        task.error = str(e)
 
 
 @router.get("/browse")
@@ -166,20 +236,36 @@ async def scan_folder(
 
     _check_backend(folder.backend_type)
 
-    if folder.backend_type == "local":
-        from ..storage.scanner import scan_local_folder
-        scan_result = await scan_local_folder(folder, db)
-    else:
-        from ..storage.scanner import scan_gdrive_folder
-        token = await _refresh_and_get_token(user, db)
-        scan_result = await scan_gdrive_folder(folder, token, db)
+    # Check if already scanning
+    existing_task = get_task(user.id, folder_id)
+    if existing_task and existing_task.status == "scanning":
+        return _task_response(existing_task)
 
-    return {
-        "folder_id": folder_id,
-        "new_count": scan_result.new_count,
-        "total_count": scan_result.total_count,
-        "skipped_count": scan_result.skipped_count,
-    }
+    # Get Drive token before launching background task (needs request context)
+    access_token = None
+    if folder.backend_type == "gdrive":
+        access_token = await _refresh_and_get_token(user, db)
+
+    task = start_task(user.id, folder_id)
+
+    asyncio.create_task(
+        _run_scan(user.id, folder_id, folder.backend_type,
+                  folder.backend_folder_id, access_token)
+    )
+
+    return _task_response(task)
+
+
+@router.get("/{folder_id}/scan-status")
+async def scan_status(
+    folder_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    task = get_task(user.id, folder_id)
+    if not task:
+        return {"folder_id": folder_id, "status": "idle"}
+    return _task_response(task)
 
 
 @router.delete("/{folder_id}", status_code=204)
@@ -197,5 +283,6 @@ async def remove_folder(
     folder = result.scalar_one_or_none()
     if not folder:
         raise HTTPException(status_code=404, detail="Folder not found")
+    remove_task(user.id, folder_id)
     await db.delete(folder)
     await db.commit()
