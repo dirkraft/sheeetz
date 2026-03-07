@@ -1,8 +1,12 @@
+from .conftest import wait_for_scan
+
+
 async def test_clear_index(client):
     # Scan to populate index
     folders = await client.get("/folders")
     folder_id = folders.json()["folders"][0]["id"]
     await client.post(f"/folders/{folder_id}/scan")
+    await wait_for_scan(client, folder_id)
 
     sheets = await client.get("/sheets")
     assert sheets.json()["total"] > 0

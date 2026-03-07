@@ -1,3 +1,4 @@
+import asyncio
 import os
 from pathlib import Path
 
@@ -15,6 +16,7 @@ os.environ["DATABASE_URL"] = "sqlite+aiosqlite://"
 from sheeetz.main import app  # noqa: E402
 from sheeetz.models import Base, LibraryFolder, User  # noqa: E402
 from sheeetz.db import get_db  # noqa: E402
+import sheeetz.db as db_module  # noqa: E402
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 TEST_SECRET = "test-secret"
@@ -36,9 +38,14 @@ async def db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+    # Override background_session so background tasks use the test DB
+    original = db_module.background_session
+    db_module.background_session = session_factory
+
     async with session_factory() as session:
         yield session
 
+    db_module.background_session = original
     await engine.dispose()
 
 
@@ -99,3 +106,15 @@ async def unauth_client(seeded_db: AsyncSession):
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
     app.dependency_overrides.clear()
+
+
+async def wait_for_scan(client: AsyncClient, folder_id: int, timeout: float = 5.0) -> dict:
+    """Poll scan-status until complete or error. Returns final status."""
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        resp = await client.get(f"/folders/{folder_id}/scan-status")
+        data = resp.json()
+        if data["status"] in ("complete", "error", "idle"):
+            return data
+        await asyncio.sleep(0.05)
+    raise TimeoutError(f"Scan for folder {folder_id} did not complete in {timeout}s")

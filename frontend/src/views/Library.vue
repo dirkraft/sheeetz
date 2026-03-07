@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { getConfig, getSelectedFolders, removeFolder, scanFolder, type BackendType, type LibraryFolder, type ScanResult } from '../api'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { getConfig, getSelectedFolders, getScanStatus, removeFolder, scanFolder, type BackendType, type LibraryFolder, type ScanStatus } from '../api'
 import FolderPicker from '../components/FolderPicker.vue'
 
 const selectedFolders = ref<LibraryFolder[]>([])
@@ -8,16 +8,75 @@ const backends = ref<BackendType[]>([])
 const showPicker = ref(false)
 const loading = ref(true)
 const error = ref('')
-const scanningIds = ref<Set<number>>(new Set())
-const scanResults = ref<Map<number, ScanResult>>(new Map())
+const scanStates = ref<Map<number, ScanStatus>>(new Map())
 
 const selectedIds = computed(() => new Set(selectedFolders.value.map(f => f.backend_folder_id)))
+
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+function isScanning(id: number): boolean {
+  return scanStates.value.get(id)?.status === 'scanning'
+}
+
+function startPolling() {
+  if (pollTimer) return
+  pollTimer = setInterval(pollActiveScan, 1000)
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+function hasActiveScans(): boolean {
+  for (const s of scanStates.value.values()) {
+    if (s.status === 'scanning') return true
+  }
+  return false
+}
+
+async function pollActiveScan() {
+  const scanning = [...scanStates.value.entries()].filter(([, s]) => s.status === 'scanning')
+  if (!scanning.length) {
+    stopPolling()
+    return
+  }
+  await Promise.all(
+    scanning.map(async ([id]) => {
+      try {
+        const status = await getScanStatus(id)
+        scanStates.value = new Map([...scanStates.value, [id, status]])
+      } catch {
+        // ignore polling errors
+      }
+    })
+  )
+  // Stop polling if no more active scans
+  if (!hasActiveScans()) stopPolling()
+}
 
 onMounted(async () => {
   try {
     const [foldersData, configData] = await Promise.all([getSelectedFolders(), getConfig()])
     selectedFolders.value = foldersData.folders
     backends.value = configData.backends
+
+    // Check for any in-progress scans
+    await Promise.all(
+      foldersData.folders.map(async (f: LibraryFolder) => {
+        try {
+          const status = await getScanStatus(f.id)
+          if (status.status !== 'idle') {
+            scanStates.value = new Map([...scanStates.value, [f.id, status]])
+          }
+        } catch {
+          // ignore
+        }
+      })
+    )
+    if (hasActiveScans()) startPolling()
   } catch (e: any) {
     error.value = e.message
   } finally {
@@ -25,9 +84,15 @@ onMounted(async () => {
   }
 })
 
+onUnmounted(() => {
+  stopPolling()
+})
+
 async function handleRemove(id: number) {
   await removeFolder(id)
   selectedFolders.value = selectedFolders.value.filter(f => f.id !== id)
+  scanStates.value.delete(id)
+  scanStates.value = new Map(scanStates.value)
 }
 
 async function handleAdded() {
@@ -36,16 +101,12 @@ async function handleAdded() {
 }
 
 async function handleScan(id: number) {
-  scanningIds.value = new Set([...scanningIds.value, id])
   try {
-    const result = await scanFolder(id)
-    scanResults.value = new Map([...scanResults.value, [id, result]])
+    const status = await scanFolder(id)
+    scanStates.value = new Map([...scanStates.value, [id, status]])
+    if (status.status === 'scanning') startPolling()
   } catch (e: any) {
     error.value = e.message
-  } finally {
-    const next = new Set(scanningIds.value)
-    next.delete(id)
-    scanningIds.value = next
   }
 }
 </script>
@@ -64,17 +125,38 @@ async function handleScan(id: number) {
         </div>
         <ul v-else class="folder-list">
           <li v-for="f in selectedFolders" :key="f.id" class="folder-item">
-            <div>
-              <span class="badge" :class="f.backend_type">{{ f.backend_type === 'local' ? 'Local' : 'Drive' }}</span>
-              <strong>{{ f.folder_name }}</strong>
-              <small class="folder-path">{{ f.folder_path }}</small>
-              <small v-if="scanResults.has(f.id)" class="scan-result">
-                {{ scanResults.get(f.id)!.new_count }} new, {{ scanResults.get(f.id)!.total_count }} total PDFs
-              </small>
+            <div class="folder-info">
+              <div>
+                <span class="badge" :class="f.backend_type">{{ f.backend_type === 'local' ? 'Local' : 'Drive' }}</span>
+                <strong>{{ f.folder_name }}</strong>
+                <small class="folder-path">{{ f.folder_path }}</small>
+              </div>
+              <div v-if="scanStates.has(f.id)" class="scan-status">
+                <template v-if="scanStates.get(f.id)!.status === 'scanning'">
+                  <span class="scan-progress">
+                    Scanning{{ scanStates.get(f.id)!.total_count != null
+                      ? ` (${scanStates.get(f.id)!.processed}/${scanStates.get(f.id)!.total_count})`
+                      : '...' }}
+                  </span>
+                  <span v-if="scanStates.get(f.id)!.current_file" class="scan-file">
+                    {{ scanStates.get(f.id)!.current_file }}
+                  </span>
+                </template>
+                <template v-else-if="scanStates.get(f.id)!.status === 'complete'">
+                  <span class="scan-result">
+                    {{ scanStates.get(f.id)!.new_count }} new, {{ scanStates.get(f.id)!.total_count }} total PDFs
+                  </span>
+                </template>
+                <template v-else-if="scanStates.get(f.id)!.status === 'error'">
+                  <span class="scan-error">
+                    Scan failed: {{ scanStates.get(f.id)!.error }}
+                  </span>
+                </template>
+              </div>
             </div>
             <div class="folder-actions">
-              <button class="scan-btn" :disabled="scanningIds.has(f.id)" @click="handleScan(f.id)">
-                {{ scanningIds.has(f.id) ? 'Scanning...' : 'Scan' }}
+              <button class="scan-btn" :disabled="isScanning(f.id)" @click="handleScan(f.id)">
+                {{ isScanning(f.id) ? 'Scanning...' : 'Scan' }}
               </button>
               <button class="remove-btn" @click="handleRemove(f.id)">Remove</button>
             </div>
@@ -114,9 +196,14 @@ async function handleScan(id: number) {
 .folder-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: 0.75rem 0;
   border-bottom: 1px solid #eee;
+}
+
+.folder-info {
+  flex: 1;
+  min-width: 0;
 }
 
 .folder-path {
@@ -128,6 +215,41 @@ async function handleScan(id: number) {
 .folder-actions {
   display: flex;
   gap: 0.5rem;
+  flex-shrink: 0;
+  margin-left: 1rem;
+}
+
+.scan-status {
+  margin-top: 0.25rem;
+}
+
+.scan-progress {
+  display: block;
+  color: #1976d2;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.scan-file {
+  display: block;
+  color: #888;
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 400px;
+}
+
+.scan-result {
+  display: block;
+  color: #4caf50;
+  font-size: 0.8rem;
+}
+
+.scan-error {
+  display: block;
+  color: #d32f2f;
+  font-size: 0.8rem;
 }
 
 .scan-btn {
@@ -147,12 +269,6 @@ async function handleScan(id: number) {
 .scan-btn:disabled {
   background: #a5d6a7;
   cursor: default;
-}
-
-.scan-result {
-  display: block;
-  color: #4caf50;
-  font-size: 0.8rem;
 }
 
 .remove-btn {

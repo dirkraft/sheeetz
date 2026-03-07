@@ -1,4 +1,4 @@
-from .conftest import FIXTURES_DIR
+from .conftest import FIXTURES_DIR, wait_for_scan
 
 
 async def test_browse_local_folders(client):
@@ -35,7 +35,8 @@ async def test_scan_folder(client):
 
     resp = await client.post(f"/folders/{folder_id}/scan")
     assert resp.status_code == 200
-    data = resp.json()
+
+    data = await wait_for_scan(client, folder_id)
     assert data["new_count"] == 2  # sample.pdf + subfolder/nested.pdf
     assert data["total_count"] == 2
     assert data["skipped_count"] == 0
@@ -47,10 +48,11 @@ async def test_rescan_skips_duplicates(client):
 
     # First scan
     await client.post(f"/folders/{folder_id}/scan")
+    await wait_for_scan(client, folder_id)
 
     # Second scan
-    resp = await client.post(f"/folders/{folder_id}/scan")
-    data = resp.json()
+    await client.post(f"/folders/{folder_id}/scan")
+    data = await wait_for_scan(client, folder_id)
     assert data["new_count"] == 0
     assert data["skipped_count"] == 2
 
@@ -61,6 +63,7 @@ async def test_delete_folder_cascades_sheets(client):
 
     # Scan to create sheets
     await client.post(f"/folders/{folder_id}/scan")
+    await wait_for_scan(client, folder_id)
     sheets = await client.get("/sheets")
     assert sheets.json()["total"] > 0
 

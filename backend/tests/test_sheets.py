@@ -1,5 +1,7 @@
 import json
 
+from .conftest import wait_for_scan
+
 
 async def test_list_sheets_empty(client):
     resp = await client.get("/sheets")
@@ -14,6 +16,7 @@ async def _scan_fixtures(client):
     folders = await client.get("/folders")
     folder_id = folders.json()["folders"][0]["id"]
     await client.post(f"/folders/{folder_id}/scan")
+    await wait_for_scan(client, folder_id)
     resp = await client.get("/sheets")
     return resp.json()
 
