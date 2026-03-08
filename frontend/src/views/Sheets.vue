@@ -26,15 +26,17 @@ const STATIC_COLUMNS: ColumnDef[] = [
   { key: 'composer', label: 'Composer', sortKey: 'composer', render: (s) => s.metadata?.composer || '\u2014' },
   { key: 'tags', label: 'Tags', sortKey: 'tags', render: (s) => s.metadata?.tags || '\u2014' },
   { key: 'pages', label: 'Pages', sortKey: 'pages', render: (s) => s.metadata?.pages || '\u2014' },
-  { key: 'folder', label: 'Folder', sortKey: 'folder_path', render: (s) => s.folder_path || '\u2014' },
+  { key: 'folder', label: 'Folder', sortKey: 'folder_path', render: (s) => {
+    const f = folders.value.find(f => f.id === s.library_folder_id)
+    return f ? f.folder_name : (s.folder_path || '\u2014')
+  } },
   { key: 'source', label: 'Source', sortKey: 'backend_type', isSource: true, render: (s) => s.backend_type === 'local' ? 'Local' : 'Drive' },
 ]
 
 const STATIC_KEYS = new Set(STATIC_COLUMNS.map((c) => c.key))
 
 function makeCustomColumn(key: string): ColumnDef {
-  const label = key.charAt(0).toUpperCase() + key.slice(1)
-  return { key, label, sortKey: key, isCustom: true, render: (s) => s.metadata?.[key] || '\u2014' }
+  return { key, label: key, sortKey: key, isCustom: true, render: (s) => s.metadata?.[key] || '\u2014' }
 }
 
 const customColumns = ref<ColumnDef[]>([])
