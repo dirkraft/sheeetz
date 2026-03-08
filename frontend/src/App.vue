@@ -7,7 +7,11 @@
       <router-link to="/admin">Admin</router-link>
     </nav>
     <main>
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <keep-alive include="Sheets">
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
     </main>
   </div>
 </template>

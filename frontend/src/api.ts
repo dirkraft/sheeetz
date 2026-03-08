@@ -21,6 +21,7 @@ export async function getMe() {
 
 export interface UserSettings {
   columns: string[]
+  organizeTemplate?: string
 }
 
 export async function getSettings() {
@@ -144,6 +145,51 @@ export async function scanFolder(folderId: number) {
 
 export async function getScanStatus(folderId: number) {
   return apiFetch<ScanStatus>(`/folders/${folderId}/scan-status`)
+}
+
+// --- Organize ---
+
+export interface SheetPreview {
+  sheet_id: number
+  filename: string
+  from_path: string
+  to_path: string | null
+  can_move: boolean
+  warning?: string
+}
+
+export interface OrganizePreviewResult {
+  previews: SheetPreview[]
+}
+
+export interface OrganizeJobStatus {
+  job_id: string
+  status: 'running' | 'complete' | 'error'
+  total: number
+  processed: number
+  moved_count: number
+  failed_count: number
+  current_file: string
+  errors: string[]
+  error: string
+}
+
+export async function previewOrganize(sheetIds: number[], template: string) {
+  return apiFetch<OrganizePreviewResult>('/organize/preview', {
+    method: 'POST',
+    body: JSON.stringify({ sheet_ids: sheetIds, template }),
+  })
+}
+
+export async function startOrganize(sheetIds: number[], template: string) {
+  return apiFetch<OrganizeJobStatus>('/organize', {
+    method: 'POST',
+    body: JSON.stringify({ sheet_ids: sheetIds, template }),
+  })
+}
+
+export async function getOrganizeJob(jobId: string) {
+  return apiFetch<OrganizeJobStatus>(`/organize/jobs/${jobId}`)
 }
 
 // --- Admin ---
