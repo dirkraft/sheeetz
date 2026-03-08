@@ -287,6 +287,50 @@ function clearSelection() {
   selectedIds.value = new Set()
 }
 
+// --- Template variable hints ---
+
+interface TemplateVar {
+  key: string
+  count: number
+  total: number
+  example: string
+}
+
+const templateVars = computed((): TemplateVar[] => {
+  const selected = sheets.value.filter((s) => selectedIds.value.has(s.id))
+  const total = selected.length
+  if (!total) return []
+
+  const counts: Record<string, number> = {}
+  const examples: Record<string, string> = {}
+
+  for (const sheet of selected) {
+    if (sheet.metadata) {
+      for (const [k, v] of Object.entries(sheet.metadata)) {
+        if (k === 'pages') continue
+        counts[k] = (counts[k] || 0) + 1
+        if (!examples[k] && v) examples[k] = v
+      }
+    }
+  }
+
+  // Builtins: always available
+  const firstFilename = selected[0]?.filename ?? ''
+  const stem = firstFilename.replace(/\.[^.]+$/, '')
+  const ext = firstFilename.includes('.') ? firstFilename.split('.').pop()! : 'pdf'
+
+  const builtins: TemplateVar[] = [
+    { key: 'filename', count: total, total, example: stem },
+    { key: 'file_ext', count: total, total, example: ext },
+  ]
+
+  const metaVars: TemplateVar[] = Object.entries(counts)
+    .map(([key, count]) => ({ key, count, total, example: examples[key] || '' }))
+    .sort((a, b) => b.count - a.count)
+
+  return [...builtins, ...metaVars]
+})
+
 // Close pickers when clicking outside
 function onDocClick() {
   showColumnPicker.value = false
@@ -585,6 +629,29 @@ const progressPct = computed(() => {
               Built-ins: <code>$filename</code> (stem), <code>$file_ext</code> (extension).
               Segments separated by <code>/</code> become folders.
             </div>
+
+            <div v-if="templateVars.length" class="var-table-wrap">
+              <p class="var-table-label">Available variables for selected sheets</p>
+              <table class="var-table">
+                <thead>
+                  <tr>
+                    <th>Variable</th>
+                    <th>Coverage</th>
+                    <th>Example</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="v in templateVars" :key="v.key">
+                    <td><code class="var-name">${{ v.key }}</code></td>
+                    <td :class="{ 'coverage-full': v.count === v.total, 'coverage-partial': v.count < v.total }">
+                      {{ v.count }}/{{ v.total }}
+                    </td>
+                    <td class="example-cell">{{ v.example }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
             <div v-if="previewError" class="error">{{ previewError }}</div>
             <div class="modal-footer">
               <button class="btn-secondary" @click="closeWizard">Cancel</button>
@@ -1128,6 +1195,58 @@ const progressPct = computed(() => {
   padding: 0.1em 0.3em;
   border-radius: 3px;
   font-family: monospace;
+}
+
+/* Variable hint table */
+.var-table-wrap {
+  margin-top: 1rem;
+}
+
+.var-table-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 0.35rem;
+}
+
+.var-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.var-table th,
+.var-table td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid #f0f0f0;
+  text-align: left;
+}
+
+.var-table th {
+  font-weight: 600;
+  color: #666;
+  border-bottom: 1px solid #ddd;
+}
+
+.var-name {
+  font-size: 0.82rem;
+}
+
+.coverage-full {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+.coverage-partial {
+  color: #e65100;
+}
+
+.example-cell {
+  color: #666;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Preview table */
