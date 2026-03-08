@@ -30,11 +30,6 @@ function folderBackendType(s: SheetRecord) {
   return folder?.backend_type || s.backend_type
 }
 
-function sheetFolderName(s: SheetRecord) {
-  const folder = folders.value.find((f) => f.id === s.library_folder_id)
-  return folder?.folder_name || 'Unknown'
-}
-
 function relativeFolderPath(s: SheetRecord) {
   const raw = s.folder_path || ''
   if (!raw) return ''
@@ -53,14 +48,9 @@ function relativeFilePath(s: SheetRecord) {
   return relDir ? `${relDir}/${s.filename}` : s.filename
 }
 
-function sourceFilePathLabel(s: SheetRecord) {
-  const backend = s.backend_type === 'local' ? 'LOCAL' : 'DRIVE'
-  return `[${backend}] ${sheetFolderName(s)} : ${relativeFilePath(s)}`
-}
-
 const STATIC_COLUMNS: ColumnDef[] = [
   { key: 'filename', label: 'Filename', sortKey: 'filename', render: (s) => s.filename },
-  { key: 'filepath', label: 'Filepath', sortKey: 'folder_path', render: (s) => sourceFilePathLabel(s) },
+  { key: 'filepath', label: 'Filepath', sortKey: 'folder_path', render: (s) => relativeFilePath(s) },
   { key: 'title', label: 'Title', sortKey: 'title', render: (s) => s.metadata?.title || '\u2014' },
   { key: 'composer', label: 'Composer', sortKey: 'composer', render: (s) => s.metadata?.composer || '\u2014' },
   { key: 'tags', label: 'Tags', sortKey: 'tags', render: (s) => s.metadata?.tags || '\u2014' },
