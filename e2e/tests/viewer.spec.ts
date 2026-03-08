@@ -88,7 +88,8 @@ test.describe('Sheet Viewer', () => {
     await page.locator('.back-btn').click()
     await expect(page).toHaveURL(/\/sheets$/)
 
-    const editedRow = page.locator('.sheet-row', { hasText: filename })
-    await expect(editedRow).toContainText(newComposer)
+    await page.getByPlaceholder('Composer...').fill(newComposer)
+    await expect(page.locator('.result-count')).toContainText('1 sheet found')
+    await expect(page.locator('.sheet-row', { hasText: filename })).toBeVisible()
   })
 })
