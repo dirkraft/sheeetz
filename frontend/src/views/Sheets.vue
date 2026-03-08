@@ -701,10 +701,8 @@ const progressPct = computed(() => {
                 <thead>
                   <tr>
                     <th class="select-col"></th>
-                    <th>Filename</th>
-                    <th>From</th>
-                    <th>To</th>
-                    <th>Status</th>
+                    <th>From → To</th>
+                    <th class="status-col">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -721,10 +719,11 @@ const progressPct = computed(() => {
                         @change="togglePreviewSheet(p.sheet_id)"
                       />
                     </td>
-                    <td class="filename-cell">{{ p.filename }}</td>
-                    <td class="path-cell">{{ p.from_path }}</td>
-                    <td class="path-cell">{{ p.to_path ?? '—' }}</td>
-                    <td>
+                    <td class="path-cell">
+                      <div class="path-from"><span class="path-label">from</span>{{ p.from_path }}</div>
+                      <div class="path-to"><span class="path-label">to</span>{{ p.to_path ?? '—' }}</div>
+                    </td>
+                    <td class="status-col">
                       <span v-if="!p.can_move" class="warning-badge" :title="p.warning">
                         ⚠ {{ p.warning }}
                       </span>
@@ -1316,21 +1315,40 @@ const progressPct = computed(() => {
   opacity: 0.5;
 }
 
-.filename-cell {
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .path-cell {
-  max-width: 240px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-family: monospace;
   font-size: 0.8rem;
-  color: #444;
+  word-break: break-all;
+}
+
+.path-from,
+.path-to {
+  padding: 0.15rem 0;
+}
+
+.path-from {
+  color: #555;
+}
+
+.path-to {
+  color: #1565c0;
+}
+
+.path-label {
+  display: inline-block;
+  font-family: sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #999;
+  text-transform: uppercase;
+  width: 2.5rem;
+  flex-shrink: 0;
+}
+
+.status-col {
+  white-space: nowrap;
+  vertical-align: top;
+  padding-top: 0.5rem;
 }
 
 .warning-badge {
