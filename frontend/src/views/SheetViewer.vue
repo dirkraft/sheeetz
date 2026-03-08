@@ -12,6 +12,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 
 const route = useRoute()
 const router = useRouter()
+const SHEETS_REFRESH_FLAG = 'sheets:list-needs-refresh'
 
 const sheet = ref<SheetRecord | null>(null)
 const loading = ref(true)
@@ -34,10 +35,6 @@ const editableFields = [
   { key: 'tags', label: 'Tags' },
 ]
 
-const coreFields = [
-  ...editableFields,
-  { key: 'pages', label: 'Pages' },
-]
 
 // Editable form state
 const editForm = reactive<Record<string, string>>({
@@ -87,6 +84,7 @@ async function saveMetadata() {
     // Update local sheet metadata and re-populate forms
     sheet.value.metadata = result.metadata
     populateEditForm(result.metadata)
+    sessionStorage.setItem(SHEETS_REFRESH_FLAG, '1')
     saveSuccess.value = true
     // Re-fetch raw metadata to reflect changes
     try {

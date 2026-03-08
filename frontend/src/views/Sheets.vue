@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   getSheets, getSelectedFolders, getSettings, updateSettings,
   getMetadataKeys, previewOrganize, startOrganize, getOrganizeJob,
@@ -8,6 +8,8 @@ import {
 } from '../api'
 
 const router = useRouter()
+const route = useRoute()
+const SHEETS_REFRESH_FLAG = 'sheets:list-needs-refresh'
 
 // --- Column definitions ---
 
@@ -22,11 +24,11 @@ interface ColumnDef {
 
 const STATIC_COLUMNS: ColumnDef[] = [
   { key: 'filename', label: 'Filename', sortKey: 'filename', render: (s) => s.filename },
-  { key: 'title', label: 'Title', sortKey: 'title', render: (s) => s.metadata?.title || '\u2014' },
-  { key: 'composer', label: 'Composer', sortKey: 'composer', render: (s) => s.metadata?.composer || '\u2014' },
-  { key: 'tags', label: 'Tags', sortKey: 'tags', render: (s) => s.metadata?.tags || '\u2014' },
-  { key: 'pages', label: 'Pages', sortKey: 'pages', render: (s) => s.metadata?.pages || '\u2014' },
-  { key: 'folder', label: 'Folder', sortKey: 'folder_path', render: (s) => s.folder_path || '\u2014' },
+  { key: 'title', label: 'Title', sortKey: 'title', render: (s) => s.metadata?.title || '—' },
+  { key: 'composer', label: 'Composer', sortKey: 'composer', render: (s) => s.metadata?.composer || '—' },
+  { key: 'tags', label: 'Tags', sortKey: 'tags', render: (s) => s.metadata?.tags || '—' },
+  { key: 'pages', label: 'Pages', sortKey: 'pages', render: (s) => s.metadata?.pages || '—' },
+  { key: 'folder', label: 'Folder', sortKey: 'folder_path', render: (s) => s.folder_path || '—' },
   { key: 'source', label: 'Source', sortKey: 'backend_type', isSource: true, render: (s) => s.backend_type === 'local' ? 'Local' : 'Drive' },
 ]
 
@@ -34,7 +36,7 @@ const STATIC_KEYS = new Set(STATIC_COLUMNS.map((c) => c.key))
 
 function makeCustomColumn(key: string): ColumnDef {
   const label = key.charAt(0).toUpperCase() + key.slice(1)
-  return { key, label, sortKey: key, isCustom: true, render: (s) => s.metadata?.[key] || '\u2014' }
+  return { key, label, sortKey: key, isCustom: true, render: (s) => s.metadata?.[key] || '—' }
 }
 
 const customColumns = ref<ColumnDef[]>([])
@@ -186,6 +188,18 @@ async function load() {
   }
 }
 
+function maybeRefreshList() {
+  if (sessionStorage.getItem(SHEETS_REFRESH_FLAG) !== '1') return
+  sessionStorage.removeItem(SHEETS_REFRESH_FLAG)
+  load()
+}
+
+function onWindowFocus() {
+  if (route.path === '/sheets') {
+    maybeRefreshList()
+  }
+}
+
 function debouncedLoad() {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => {
@@ -201,8 +215,15 @@ watch([filterFolderId, sortBy, sortDir], () => {
   load()
 })
 watch(page, load)
+watch(() => route.path, (path) => {
+  if (path === '/sheets') {
+    maybeRefreshList()
+  }
+})
 
 onMounted(async () => {
+  window.addEventListener('focus', onWindowFocus)
+
   // Fetch custom metadata keys so dynamic columns are available before restoring settings
   try {
     const { keys } = await getMetadataKeys()
@@ -231,6 +252,12 @@ onMounted(async () => {
   const foldersData = await getSelectedFolders()
   folders.value = foldersData.folders
   await load()
+  maybeRefreshList()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', onWindowFocus)
+  if (debounceTimer) clearTimeout(debounceTimer)
 })
 
 const totalPages = ref(0)
@@ -250,7 +277,7 @@ function toggleSort(col: ColumnDef) {
 
 function sortIndicator(col: ColumnDef) {
   if (!col.sortKey || sortBy.value !== col.sortKey) return ''
-  return sortDir.value === 'asc' ? ' \u2191' : ' \u2193'
+  return sortDir.value === 'asc' ? ' ↑' : ' ↓'
 }
 
 // --- Selection ---
@@ -377,7 +404,7 @@ const previews = ref<SheetPreview[]>([])
 const previewError = ref('')
 const previewLoading = ref(false)
 // Sheet IDs confirmed for the actual job (user may deselect some in preview step)
-const confirmedIds = ref(new Set<number>())
+const confirmedIds = ref(new Set(selectedIds.value))
 const organizeJob = ref<OrganizeJobStatus | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
