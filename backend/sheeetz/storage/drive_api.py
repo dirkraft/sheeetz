@@ -138,6 +138,66 @@ async def upload_file_content(access_token: str, file_id: str, content: bytes) -
         resp.raise_for_status()
 
 
+async def get_or_create_drive_folder(
+    access_token: str, parent_id: str, name: str
+) -> str:
+    """Return the ID of an existing subfolder named `name` under `parent_id`, creating it if needed."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    safe_name = name.replace("'", "\\'")
+    query = (
+        f"'{parent_id}' in parents "
+        f"and name = '{safe_name}' "
+        "and mimeType = 'application/vnd.google-apps.folder' "
+        "and trashed = false"
+    )
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{DRIVE_API}/files",
+            params={"q": query, "fields": "files(id)", "pageSize": 1},
+            headers=headers,
+        )
+        resp.raise_for_status()
+        files = resp.json().get("files", [])
+        if files:
+            return files[0]["id"]
+
+        # Create it
+        resp = await client.post(
+            f"{DRIVE_API}/files",
+            json={
+                "name": name,
+                "mimeType": "application/vnd.google-apps.folder",
+                "parents": [parent_id],
+            },
+            headers={**headers, "Content-Type": "application/json"},
+        )
+        resp.raise_for_status()
+        return resp.json()["id"]
+
+
+async def move_and_rename_drive_file(
+    access_token: str,
+    file_id: str,
+    new_name: str,
+    new_parent_id: str,
+    old_parent_id: str,
+) -> None:
+    """Move a Drive file to new_parent_id and rename it."""
+    headers = {"Authorization": f"Bearer {access_token}"}
+    async with httpx.AsyncClient() as client:
+        resp = await client.patch(
+            f"{DRIVE_API}/files/{file_id}",
+            params={
+                "addParents": new_parent_id,
+                "removeParents": old_parent_id,
+                "fields": "id,parents",
+            },
+            json={"name": new_name},
+            headers={**headers, "Content-Type": "application/json"},
+        )
+        resp.raise_for_status()
+
+
 async def list_pdf_files_recursive(access_token: str, folder_id: str) -> list[dict]:
     """Recursively list all PDF files under a folder.
 
