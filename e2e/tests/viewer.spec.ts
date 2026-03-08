@@ -66,4 +66,29 @@ test.describe('Sheet Viewer', () => {
     const reloadedTitleInput = page.getByRole('textbox', { name: 'Title' })
     await expect(reloadedTitleInput).toHaveValue(newTitle)
   })
+
+  test('sheets list reflects metadata edit after navigating back', async ({ page }) => {
+    await expect(page.locator('.page-canvas').first()).toBeVisible({ timeout: 15_000 })
+
+    const filename = (await page.locator('.title').textContent())?.trim() || ''
+    expect(filename).toMatch(/\.pdf$/)
+
+    await page.getByRole('button', { name: 'Info' }).click()
+    await expect(page.locator('.meta-panel')).toBeVisible()
+
+    const composerInput = page.getByRole('textbox', { name: 'Composer' })
+    await expect(composerInput).toBeVisible()
+    const newComposer = 'E2E Composer ' + Date.now()
+    await composerInput.clear()
+    await composerInput.fill(newComposer)
+
+    await page.locator('.save-btn').click()
+    await expect(page.locator('.save-ok')).toBeVisible({ timeout: 10_000 })
+
+    await page.locator('.back-btn').click()
+    await expect(page).toHaveURL(/\/sheets$/)
+
+    const editedRow = page.locator('.sheet-row', { hasText: filename })
+    await expect(editedRow).toContainText(newComposer)
+  })
 })
