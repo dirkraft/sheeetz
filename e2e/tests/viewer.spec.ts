@@ -30,6 +30,13 @@ test.describe('Sheet Viewer', () => {
     expect(info).toMatch(/\d+/)
   })
 
+  test('shows info panel by default and hides it in fullscreen', async ({ page }) => {
+    await expect(page.locator('.meta-panel')).toBeVisible({ timeout: 10_000 })
+
+    await page.getByRole('button', { name: 'Fullscreen' }).click()
+    await expect(page.locator('.meta-panel')).toBeHidden({ timeout: 10_000 })
+  })
+
   test('metadata edit survives page reload', async ({ page }) => {
     // Wait for viewer to load
     await expect(page.locator('.page-canvas').first()).toBeVisible({ timeout: 15_000 })
@@ -37,8 +44,6 @@ test.describe('Sheet Viewer', () => {
     // Capture the URL so we can reload the same sheet
     const sheetUrl = page.url()
 
-    // Open Info panel
-    await page.getByRole('button', { name: 'Info' }).click()
     await expect(page.locator('.meta-panel')).toBeVisible()
 
     // Find the Title input (the editable one, identified by placeholder)
@@ -57,9 +62,6 @@ test.describe('Sheet Viewer', () => {
     // Reload the page completely
     await page.goto(sheetUrl)
     await expect(page.locator('.page-canvas').first()).toBeVisible({ timeout: 15_000 })
-
-    // Re-open Info panel
-    await page.getByRole('button', { name: 'Info' }).click()
     await expect(page.locator('.meta-panel')).toBeVisible()
 
     // Verify the edited title survived the reload
@@ -73,7 +75,6 @@ test.describe('Sheet Viewer', () => {
     const filename = (await page.locator('.title').textContent())?.trim() || ''
     expect(filename).toMatch(/\.pdf$/)
 
-    await page.getByRole('button', { name: 'Info' }).click()
     await expect(page.locator('.meta-panel')).toBeVisible()
 
     const composerInput = page.getByRole('textbox', { name: 'Composer' })
