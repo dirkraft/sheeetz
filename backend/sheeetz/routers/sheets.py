@@ -99,10 +99,7 @@ async def list_sheets(
         meta_match = exists(
             select(1).where(
                 SheetMeta.sheet_id == Sheet.id,
-                or_(
-                    SheetMeta.key.ilike(f"%{search}%"),
-                    SheetMeta.value.ilike(f"%{search}%"),
-                ),
+                SheetMeta.value.ilike(f"%{search}%"),
             )
         )
         query = query.where(

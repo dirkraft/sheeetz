@@ -53,11 +53,11 @@ async def test_search_matches_metadata_value(client):
     assert data["sheets"][0]["filename"] == "nested.pdf"
 
 
-async def test_search_matches_metadata_key(client):
+async def test_search_does_not_match_metadata_key(client):
     await _scan_fixtures(client)
     resp = await client.get("/sheets", params={"search": "composer"})
     data = resp.json()
-    assert data["total"] == 2
+    assert data["total"] == 0
 
 
 async def test_get_sheet_detail(client):
