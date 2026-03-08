@@ -37,6 +37,29 @@ async def test_filter_by_filename(client):
     assert data["sheets"][0]["filename"] == "sample.pdf"
 
 
+async def test_search_matches_filename(client):
+    await _scan_fixtures(client)
+    resp = await client.get("/sheets", params={"search": "sample"})
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["sheets"][0]["filename"] == "sample.pdf"
+
+
+async def test_search_matches_metadata_value(client):
+    await _scan_fixtures(client)
+    resp = await client.get("/sheets", params={"search": "Bach"})
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["sheets"][0]["filename"] == "nested.pdf"
+
+
+async def test_search_matches_metadata_key(client):
+    await _scan_fixtures(client)
+    resp = await client.get("/sheets", params={"search": "composer"})
+    data = resp.json()
+    assert data["total"] == 2
+
+
 async def test_get_sheet_detail(client):
     await _scan_fixtures(client)
     sheets = await client.get("/sheets")

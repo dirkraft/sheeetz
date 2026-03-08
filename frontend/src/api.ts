@@ -55,6 +55,7 @@ export interface SheetListResult {
 }
 
 export interface SheetListParams {
+  search?: string
   filename?: string
   folder_id?: number
   meta_key?: string

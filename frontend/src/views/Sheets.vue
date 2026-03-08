@@ -172,9 +172,8 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = 50
 
-const filterFilename = ref('')
+const filterSearch = ref('')
 const filterFolderId = ref<number | null>(null)
-const filterComposer = ref('')
 const sortBy = ref('filename')
 const sortDir = ref<'asc' | 'desc'>('asc')
 
@@ -189,13 +188,9 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const metaFilters: Record<string, string> = {}
-    if (filterComposer.value) metaFilters.composer = filterComposer.value
-
     const data = await getSheets({
-      filename: filterFilename.value || undefined,
+      search: filterSearch.value || undefined,
       folder_id: filterFolderId.value ?? undefined,
-      meta_filters: Object.keys(metaFilters).length ? metaFilters : undefined,
       sort_by: sortBy.value,
       sort_dir: sortDir.value,
       page: page.value,
@@ -226,8 +221,7 @@ function debouncedLoad() {
   }, 300)
 }
 
-watch(filterFilename, debouncedLoad)
-watch(filterComposer, debouncedLoad)
+watch(filterSearch, debouncedLoad)
 watch([filterFolderId, sortBy, sortDir], () => {
   page.value = 1
   load()
@@ -581,16 +575,10 @@ const progressPct = computed(() => {
 
     <div class="filters">
       <input
-        v-model="filterFilename"
+        v-model="filterSearch"
         type="text"
-        placeholder="Search by filename..."
+        placeholder="Search sheets..."
         class="filter-input"
-      />
-      <input
-        v-model="filterComposer"
-        type="text"
-        placeholder="Composer..."
-        class="filter-input filter-short"
       />
       <select v-model="filterFolderId" class="filter-select">
         <option :value="null">All Folders</option>
