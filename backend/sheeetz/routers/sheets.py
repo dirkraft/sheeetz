@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
@@ -71,6 +71,7 @@ async def distinct_metadata_values(
 @router.get("")
 async def list_sheets(
     folder_id: int | None = None,
+    search: str | None = None,
     filename: str | None = None,
     meta_key: str | None = None,
     meta_value: str | None = None,
@@ -93,6 +94,20 @@ async def list_sheets(
 
     if filename:
         query = query.where(Sheet.filename.ilike(f"%{filename}%"))
+
+    if search:
+        meta_match = exists(
+            select(1).where(
+                SheetMeta.sheet_id == Sheet.id,
+                SheetMeta.value.ilike(f"%{search}%"),
+            )
+        )
+        query = query.where(
+            or_(
+                Sheet.filename.ilike(f"%{search}%"),
+                meta_match,
+            )
+        )
 
     # Legacy single meta filter
     if meta_key and meta_value:
