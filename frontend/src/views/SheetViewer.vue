@@ -46,6 +46,7 @@ const editForm = reactive<Record<string, string>>({
   tags: '',
 })
 const customFields = ref<Array<{ key: string; value: string }>>([])
+const removedCustomKeys = ref<Set<string>>(new Set())
 const saving = ref(false)
 const saveError = ref('')
 const saveSuccess = ref(false)
@@ -60,6 +61,7 @@ function populateEditForm(metadata: Record<string, string>) {
   customFields.value = Object.entries(metadata)
     .filter(([k]) => !coreKeySet.has(k))
     .map(([k, v]) => ({ key: k, value: v }))
+  removedCustomKeys.value = new Set()
 }
 
 function addCustomField() {
@@ -67,6 +69,8 @@ function addCustomField() {
 }
 
 function removeCustomField(index: number) {
+  const key = customFields.value[index].key.trim()
+  if (key) removedCustomKeys.value.add(key)
   customFields.value.splice(index, 1)
 }
 
@@ -82,6 +86,10 @@ async function saveMetadata() {
       const k = cf.key.trim()
       if (!k) continue
       payload[k] = cf.value
+    }
+    // Send removed keys as "" so backend clears them from PDF XMP
+    for (const k of removedCustomKeys.value) {
+      if (!(k in payload)) payload[k] = ''
     }
     const result = await updateSheetMetadata(sheet.value.id, payload)
     // Update local sheet metadata and re-populate forms

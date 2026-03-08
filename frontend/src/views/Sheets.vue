@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   getSheets, getSelectedFolders, getSettings, updateSettings,
@@ -17,7 +17,17 @@ interface ColumnDef {
   sortKey?: string
   render: (s: SheetRecord) => string
   isSource?: boolean
+  isFolder?: boolean
   isCustom?: boolean
+}
+
+function backendLabel(backendType: string) {
+  return backendType === 'local' ? 'Local' : 'Drive'
+}
+
+function folderBackendType(s: SheetRecord) {
+  const folder = folders.value.find((f) => f.id === s.library_folder_id)
+  return folder?.backend_type || s.backend_type
 }
 
 const STATIC_COLUMNS: ColumnDef[] = [
@@ -26,15 +36,17 @@ const STATIC_COLUMNS: ColumnDef[] = [
   { key: 'composer', label: 'Composer', sortKey: 'composer', render: (s) => s.metadata?.composer || '\u2014' },
   { key: 'tags', label: 'Tags', sortKey: 'tags', render: (s) => s.metadata?.tags || '\u2014' },
   { key: 'pages', label: 'Pages', sortKey: 'pages', render: (s) => s.metadata?.pages || '\u2014' },
-  { key: 'folder', label: 'Folder', sortKey: 'folder_path', render: (s) => s.folder_path || '\u2014' },
-  { key: 'source', label: 'Source', sortKey: 'backend_type', isSource: true, render: (s) => s.backend_type === 'local' ? 'Local' : 'Drive' },
+  { key: 'folder', label: 'Folder', sortKey: 'folder_path', isFolder: true, render: (s) => {
+    const f = folders.value.find(f => f.id === s.library_folder_id)
+    return f ? f.folder_name : (s.folder_path || '\u2014')
+  } },
+  { key: 'source', label: 'Source', sortKey: 'backend_type', isSource: true, render: (s) => backendLabel(s.backend_type) },
 ]
 
 const STATIC_KEYS = new Set(STATIC_COLUMNS.map((c) => c.key))
 
 function makeCustomColumn(key: string): ColumnDef {
-  const label = key.charAt(0).toUpperCase() + key.slice(1)
-  return { key, label, sortKey: key, isCustom: true, render: (s) => s.metadata?.[key] || '\u2014' }
+  return { key, label: key, sortKey: key, isCustom: true, render: (s) => s.metadata?.[key] || '\u2014' }
 }
 
 const customColumns = ref<ColumnDef[]>([])
@@ -152,6 +164,7 @@ const loading = ref(false)
 const error = ref('')
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+const initialized = ref(false)
 
 async function load() {
   loading.value = true
@@ -231,6 +244,12 @@ onMounted(async () => {
   const foldersData = await getSelectedFolders()
   folders.value = foldersData.folders
   await load()
+  initialized.value = true
+})
+
+onActivated(() => {
+  if (!initialized.value) return
+  load()
 })
 
 const totalPages = ref(0)
@@ -609,6 +628,14 @@ const progressPct = computed(() => {
               <template v-if="col.isSource">
                 <span class="badge" :class="s.backend_type">
                   {{ col.render(s) }}
+                </span>
+              </template>
+              <template v-else-if="col.isFolder">
+                <span class="folder-cell">
+                  <span class="badge" :class="folderBackendType(s)">
+                    {{ backendLabel(folderBackendType(s)) }}
+                  </span>
+                  <span>{{ col.render(s) }}</span>
                 </span>
               </template>
               <template v-else>{{ col.render(s) }}</template>
@@ -1052,6 +1079,12 @@ const progressPct = computed(() => {
 .badge.gdrive {
   background: #fce4ec;
   color: #c62828;
+}
+
+.folder-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .pagination {

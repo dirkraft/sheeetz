@@ -2,12 +2,15 @@
 
 ## Quick Reference
 
-- **Backend:** `cd backend && uvicorn sheeetz.main:app --reload`
-- **Frontend:** `cd frontend && npm run dev`
+- **Stack (preferred):** `cd backend && source .venv/bin/activate && sheeetz up`
+- **Stack status:** `cd backend && source .venv/bin/activate && sheeetz status`
+- **Stack down:** `cd backend && source .venv/bin/activate && sheeetz down`
 - **API tests:** `cd backend && pytest tests/ -v --ignore=tests/test_drive.py`
 - **E2E tests:** `cd e2e && npx playwright test`
 - **Type check frontend:** `cd frontend && npx vue-tsc --noEmit`
 - **Build frontend:** `cd frontend && npx vite build`
+
+The stack manager implementation lives in `backend/sheeetz/cli.py` and is the source of truth for local dev process control.
 
 ## Architecture Rules
 
