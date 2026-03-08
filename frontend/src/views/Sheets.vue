@@ -222,6 +222,9 @@ onMounted(async () => {
         columnOrder.value = [...saved, ...remaining]
       }
     }
+    if (settings.organizeTemplate) {
+      organizeTemplate.value = settings.organizeTemplate
+    }
   } catch {
     // use defaults
   }
@@ -338,6 +341,7 @@ async function runPreview() {
   try {
     const ids = [...confirmedIds.value]
     const result = await previewOrganize(ids, organizeTemplate.value)
+    updateSettings({ organizeTemplate: organizeTemplate.value }).catch(() => {})
     previews.value = result.previews
     // Re-sync confirmedIds to only include sheet_ids in previews
     confirmedIds.value = new Set(result.previews.map((p) => p.sheet_id))

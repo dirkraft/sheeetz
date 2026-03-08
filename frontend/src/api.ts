@@ -21,6 +21,7 @@ export async function getMe() {
 
 export interface UserSettings {
   columns: string[]
+  organizeTemplate?: string
 }
 
 export async function getSettings() {
