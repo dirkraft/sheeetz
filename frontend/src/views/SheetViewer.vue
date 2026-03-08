@@ -19,7 +19,7 @@ const error = ref('')
 const pageLeft = ref(1) // left page number (1-indexed)
 const totalPages = ref(0)
 const isFullscreen = ref(false)
-const showMeta = ref(false)
+const showMeta = ref(true)
 const pdfMeta = ref<Record<string, string> | null>(null)
 const metaLoading = ref(false)
 
@@ -113,13 +113,31 @@ async function saveMetadata() {
 
 let pdfDoc: pdfjsLib.PDFDocumentProxy | null = null
 
-async function renderPage(pageNum: number, canvas: HTMLCanvasElement) {
+function getRenderScale(
+  viewport: pdfjsLib.PageViewport,
+  container: HTMLElement,
+  visiblePages: number,
+) {
+  const styles = getComputedStyle(container)
+  const gap = parseFloat(styles.gap || '0') || 0
+  const paddingX = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0)
+  const paddingY = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0)
+  const totalWidth = Math.max(container.clientWidth - paddingX - gap * Math.max(visiblePages - 1, 0), 1)
+  const perPageWidth = Math.max(totalWidth / Math.max(visiblePages, 1), 1)
+  const totalHeight = Math.max(container.clientHeight - paddingY, 1)
+
+  const scaleByWidth = perPageWidth / viewport.width
+  const scaleByHeight = totalHeight / viewport.height
+  return Math.max(Math.min(scaleByWidth, scaleByHeight), 0.01)
+}
+
+async function renderPage(pageNum: number, canvas: HTMLCanvasElement, visiblePages: number) {
   if (!pdfDoc || pageNum < 1 || pageNum > totalPages.value) return
   const page = await pdfDoc.getPage(pageNum)
-  const container = canvas.parentElement!
-  const availHeight = container.clientHeight - 8 // small margin
+  const container = pagesRef.value || canvas.parentElement
+  if (!container) return
   const viewport = page.getViewport({ scale: 1 })
-  const scale = availHeight / viewport.height
+  const scale = getRenderScale(viewport, container, visiblePages)
   const scaledViewport = page.getViewport({ scale })
 
   const dpr = window.devicePixelRatio || 1
@@ -138,12 +156,13 @@ async function renderSpread() {
   const left = canvasLeftRef.value
   const right = canvasRightRef.value
   if (!left) return
+  const visiblePages = pageLeft.value + 1 <= totalPages.value ? 2 : 1
 
-  await renderPage(pageLeft.value, left)
+  await renderPage(pageLeft.value, left, visiblePages)
 
   if (right && pageLeft.value + 1 <= totalPages.value) {
     right.style.display = ''
-    await renderPage(pageLeft.value + 1, right)
+    await renderPage(pageLeft.value + 1, right, visiblePages)
   } else if (right) {
     right.style.display = 'none'
   }
@@ -187,6 +206,9 @@ function handlePagesClick(e: MouseEvent | TouchEvent) {
 
 function onFullscreenChange() {
   isFullscreen.value = !!document.fullscreenElement
+  if (isFullscreen.value && showMeta.value) {
+    showMeta.value = false
+  }
   // Re-render after fullscreen change to fit new dimensions
   nextTick(() => setTimeout(renderSpread, 100))
 }
@@ -206,20 +228,27 @@ function onKeydown(e: KeyboardEvent) {
 
 async function toggleMeta() {
   showMeta.value = !showMeta.value
-  if (showMeta.value && !pdfMeta.value) {
-    metaLoading.value = true
-    try {
-      const result = await getPdfMetadata(Number(route.params.id))
-      pdfMeta.value = result.metadata
-    } catch (e: any) {
-      pdfMeta.value = { _error: e.message }
-    } finally {
-      metaLoading.value = false
-    }
-  }
+  if (showMeta.value) await loadPdfMeta()
   // Re-render since available width changed
   await nextTick()
   await renderSpread()
+}
+
+async function loadPdfMeta() {
+  if (metaLoading.value || pdfMeta.value) return
+  metaLoading.value = true
+  try {
+    const result = await getPdfMetadata(Number(route.params.id))
+    pdfMeta.value = result.metadata
+  } catch (e: any) {
+    pdfMeta.value = { _error: e.message }
+  } finally {
+    metaLoading.value = false
+  }
+}
+
+function onWindowResize() {
+  renderSpread()
 }
 
 watch(pageLeft, renderSpread)
@@ -229,6 +258,7 @@ onMounted(async () => {
 
   document.addEventListener('fullscreenchange', onFullscreenChange)
   document.addEventListener('keydown', onKeydown)
+  window.addEventListener('resize', onWindowResize)
 
   try {
     const [sheetData, pdfData] = await Promise.all([
@@ -241,6 +271,7 @@ onMounted(async () => {
     pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise
     totalPages.value = pdfDoc.numPages
     loading.value = false
+    if (showMeta.value) await loadPdfMeta()
 
     await nextTick()
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
@@ -254,11 +285,8 @@ onMounted(async () => {
 onUnmounted(() => {
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   document.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('resize', onWindowResize)
   pdfDoc?.destroy()
-})
-
-window.addEventListener('resize', () => {
-  renderSpread()
 })
 </script>
 
