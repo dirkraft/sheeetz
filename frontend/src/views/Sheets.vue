@@ -530,7 +530,6 @@ const progressPct = computed(() => {
               <input
                 type="checkbox"
                 :checked="selectedIds.has(s.id)"
-                @change="toggleSelect(s.id)"
               />
             </td>
             <td v-for="col in activeColumns" :key="col.key">
