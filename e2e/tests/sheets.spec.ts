@@ -11,8 +11,10 @@ test.describe('Sheets', () => {
   test('lists sheets after scan', async ({ page }) => {
     await page.goto('/sheets')
     await expect(page.locator('.result-count')).toContainText('2 sheets found')
-    await expect(page.getByText('sample.pdf')).toBeVisible()
-    await expect(page.getByText('nested.pdf')).toBeVisible()
+    await expect(page.locator('.sheet-row', { hasText: 'sample.pdf' })).toHaveCount(1)
+    await expect(page.locator('.sheet-row', { hasText: 'nested.pdf' })).toHaveCount(1)
+    await expect(page.getByRole('columnheader', { name: 'Filepath' })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'subfolder/nested.pdf', exact: true })).toBeVisible()
   })
 
   test('filter by filename', async ({ page }) => {
@@ -21,7 +23,7 @@ test.describe('Sheets', () => {
 
     await page.getByPlaceholder('Search by filename').fill('sample')
     await expect(page.locator('.result-count')).toContainText('1 sheet found')
-    await expect(page.getByText('sample.pdf')).toBeVisible()
+    await expect(page.locator('.sheet-row', { hasText: 'sample.pdf' })).toHaveCount(1)
   })
 
   test('clear filter restores all', async ({ page }) => {

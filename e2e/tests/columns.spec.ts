@@ -9,7 +9,7 @@ test.describe('Column Configuration', () => {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ columns: ['filename', 'composer', 'folder', 'source'] }),
+        body: JSON.stringify({ columns: ['filename', 'composer', 'filepath', 'folder', 'source'] }),
       })
     )
 
@@ -23,11 +23,12 @@ test.describe('Column Configuration', () => {
 
   test('default columns match expected layout', async ({ page }) => {
     const headers = page.locator('.sheets-table thead th:not(.select-col)')
-    await expect(headers).toHaveCount(4)
+    await expect(headers).toHaveCount(5)
     await expect(headers.nth(0)).toContainText('Filename')
     await expect(headers.nth(1)).toContainText('Composer')
-    await expect(headers.nth(2)).toContainText('Folder')
-    await expect(headers.nth(3)).toContainText('Source')
+    await expect(headers.nth(2)).toContainText('Filepath')
+    await expect(headers.nth(3)).toContainText('Folder')
+    await expect(headers.nth(4)).toContainText('Source')
   })
 
   test('column picker opens and shows all columns', async ({ page }) => {
@@ -36,7 +37,7 @@ test.describe('Column Configuration', () => {
     await expect(picker).toBeVisible()
 
     const options = picker.locator('.column-option')
-    await expect(options).toHaveCount(9)
+    await expect(options).toHaveCount(10)
   })
 
   test('toggle column on adds it to the table', async ({ page }) => {
@@ -48,7 +49,7 @@ test.describe('Column Configuration', () => {
     await expect(titleCb).toBeChecked()
 
     const headers = page.locator('.sheets-table thead th:not(.select-col)')
-    await expect(headers).toHaveCount(5)
+    await expect(headers).toHaveCount(6)
     await expect(page.locator('.sheets-table thead th', { hasText: 'Title' })).toBeVisible()
   })
 
@@ -61,7 +62,7 @@ test.describe('Column Configuration', () => {
     await expect(sourceCb).not.toBeChecked()
 
     const headers = page.locator('.sheets-table thead th:not(.select-col)')
-    await expect(headers).toHaveCount(3)
+    await expect(headers).toHaveCount(4)
     await expect(page.locator('.sheets-table thead th', { hasText: 'Source' })).not.toBeVisible()
   })
 
@@ -86,7 +87,7 @@ test.describe('Column Configuration', () => {
     await expect(page.locator('.result-count')).toBeVisible()
 
     const headers = page.locator('.sheets-table thead th:not(.select-col)')
-    await expect(headers).toHaveCount(4)
+    await expect(headers).toHaveCount(5)
     await expect(page.locator('.sheets-table thead th', { hasText: 'Genre' })).toBeVisible()
     await expect(page.locator('.sheets-table thead th', { hasText: 'Source' })).not.toBeVisible()
   })
@@ -95,7 +96,7 @@ test.describe('Column Configuration', () => {
     await page.locator('.columns-btn').click()
 
     // Disable all but Filename
-    for (const label of ['Composer', 'Folder', 'Source']) {
+    for (const label of ['Composer', 'Filepath', 'Folder', 'Source']) {
       const cb = page.locator('.column-option').filter({ hasText: label }).locator('input[type="checkbox"]')
       await cb.click({ force: true })
       await expect(cb).not.toBeChecked()

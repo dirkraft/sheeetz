@@ -30,8 +30,27 @@ function folderBackendType(s: SheetRecord) {
   return folder?.backend_type || s.backend_type
 }
 
+function relativeFolderPath(s: SheetRecord) {
+  const raw = s.folder_path || ''
+  if (!raw) return ''
+  const folder = folders.value.find((f) => f.id === s.library_folder_id)
+  if (!folder) return raw
+
+  const base = folder.folder_path.replace(/\/+$/, '')
+  if (!base) return raw
+  if (raw === base) return ''
+  if (raw.startsWith(`${base}/`)) return raw.slice(base.length + 1)
+  return raw
+}
+
+function relativeFilePath(s: SheetRecord) {
+  const relDir = relativeFolderPath(s)
+  return relDir ? `${relDir}/${s.filename}` : s.filename
+}
+
 const STATIC_COLUMNS: ColumnDef[] = [
   { key: 'filename', label: 'Filename', sortKey: 'filename', render: (s) => s.filename },
+  { key: 'filepath', label: 'Filepath', sortKey: 'folder_path', render: (s) => relativeFilePath(s) },
   { key: 'title', label: 'Title', sortKey: 'title', render: (s) => s.metadata?.title || '\u2014' },
   { key: 'composer', label: 'Composer', sortKey: 'composer', render: (s) => s.metadata?.composer || '\u2014' },
   { key: 'tags', label: 'Tags', sortKey: 'tags', render: (s) => s.metadata?.tags || '\u2014' },
@@ -55,7 +74,7 @@ const allColumns = computed(() => [...STATIC_COLUMNS, ...customColumns.value])
 const columnMap = computed(() => Object.fromEntries(allColumns.value.map((c) => [c.key, c])))
 const allKeys = computed(() => allColumns.value.map((c) => c.key))
 
-const DEFAULT_COLUMNS = ['filename', 'composer', 'folder', 'source']
+const DEFAULT_COLUMNS = ['filename', 'composer', 'filepath', 'folder', 'source']
 
 // columnOrder: all keys in display order (active first, then inactive)
 const columnOrder = ref<string[]>(STATIC_COLUMNS.map((c) => c.key))
@@ -228,6 +247,14 @@ onMounted(async () => {
     const settings = await getSettings()
     if (settings.columns?.length) {
       const saved = settings.columns.filter((k: string) => columnMap.value[k])
+      if (!saved.includes('filepath')) {
+        const filenameIdx = saved.indexOf('filename')
+        if (filenameIdx >= 0) {
+          saved.splice(filenameIdx + 1, 0, 'filepath')
+        } else {
+          saved.push('filepath')
+        }
+      }
       if (saved.length) {
         activeSet.value = new Set(saved)
         // Active columns first in saved order, then remaining keys

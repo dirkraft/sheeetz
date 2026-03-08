@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getSheet, getSheetPDF, getPdfMetadata, updateSheetMetadata, getMetadataValues, getMetadataKeys, type SheetRecord } from '../api'
+import {
+  getSheet, getSheetPDF, getPdfMetadata, updateSheetMetadata, getMetadataValues, getMetadataKeys,
+  getSelectedFolders, type SheetRecord, type LibraryFolder,
+} from '../api'
 import AutocompleteInput from '../components/AutocompleteInput.vue'
 import * as pdfjsLib from 'pdfjs-dist'
 
@@ -22,6 +25,7 @@ const isFullscreen = ref(false)
 const showMeta = ref(true)
 const pdfMeta = ref<Record<string, string> | null>(null)
 const metaLoading = ref(false)
+const folders = ref<LibraryFolder[]>([])
 
 const viewerRef = ref<HTMLElement | null>(null)
 const pagesRef = ref<HTMLElement | null>(null)
@@ -52,6 +56,38 @@ const saveError = ref('')
 const saveSuccess = ref(false)
 
 const coreKeySet = new Set([...editableFields.map(f => f.key), 'pages'])
+
+function sheetFolderName(s: SheetRecord | null) {
+  if (!s) return 'Unknown'
+  const folder = folders.value.find((f) => f.id === s.library_folder_id)
+  return folder?.folder_name || 'Unknown'
+}
+
+function relativeFolderPath(s: SheetRecord | null) {
+  if (!s) return ''
+  const raw = s.folder_path || ''
+  if (!raw) return ''
+  const folder = folders.value.find((f) => f.id === s.library_folder_id)
+  if (!folder) return raw
+
+  const base = folder.folder_path.replace(/\/+$/, '')
+  if (!base) return raw
+  if (raw === base) return ''
+  if (raw.startsWith(`${base}/`)) return raw.slice(base.length + 1)
+  return raw
+}
+
+function relativeFilePath(s: SheetRecord | null) {
+  if (!s) return ''
+  const relDir = relativeFolderPath(s)
+  return relDir ? `${relDir}/${s.filename}` : s.filename
+}
+
+function sourceFilePathLabel(s: SheetRecord | null) {
+  if (!s) return ''
+  const backend = s.backend_type === 'local' ? 'LOCAL' : 'DRIVE'
+  return `[${backend}] ${sheetFolderName(s)} : ${relativeFilePath(s)}`
+}
 
 function populateEditForm(metadata: Record<string, string>) {
   for (const field of editableFields) {
@@ -261,11 +297,13 @@ onMounted(async () => {
   window.addEventListener('resize', onWindowResize)
 
   try {
-    const [sheetData, pdfData] = await Promise.all([
+    const [sheetData, pdfData, foldersData] = await Promise.all([
       getSheet(sheetId),
       getSheetPDF(sheetId),
+      getSelectedFolders(),
     ])
     sheet.value = sheetData
+    folders.value = foldersData.folders
     populateEditForm(sheetData.metadata || {})
 
     pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise
@@ -315,6 +353,7 @@ onUnmounted(() => {
           <button @click="toggleFullscreen">{{ isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}</button>
         </div>
       </div>
+      <div class="filepath-line">{{ sourceFilePathLabel(sheet) }}</div>
       <div class="content-area">
         <div class="pages" ref="pagesRef" @click="handlePagesClick">
           <canvas ref="canvasLeftRef" class="page-canvas"></canvas>
@@ -472,6 +511,18 @@ onUnmounted(() => {
 
 .toolbar-link:hover {
   background: #666;
+}
+
+.filepath-line {
+  background: #2f2f2f;
+  border-top: 1px solid #3c3c3c;
+  border-bottom: 1px solid #3c3c3c;
+  color: #bdbdbd;
+  font-size: 0.8rem;
+  padding: 0.3rem 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .content-area {

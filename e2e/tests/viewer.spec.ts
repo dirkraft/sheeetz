@@ -30,6 +30,12 @@ test.describe('Sheet Viewer', () => {
     expect(info).toMatch(/\d+/)
   })
 
+  test('shows full filepath line', async ({ page }) => {
+    await expect(page.locator('.filepath-line')).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('.filepath-line')).toContainText('[LOCAL] fixtures :')
+    await expect(page.locator('.filepath-line')).toContainText('.pdf')
+  })
+
   test('shows info panel by default and hides it in fullscreen', async ({ page }) => {
     await expect(page.locator('.meta-panel')).toBeVisible({ timeout: 10_000 })
 
