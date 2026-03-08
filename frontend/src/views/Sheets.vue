@@ -287,6 +287,31 @@ function clearSelection() {
   selectedIds.value = new Set()
 }
 
+// --- Template validation ---
+
+function validateTemplate(template: string, vars: TemplateVar[]): string {
+  if (!template.trim()) return ''
+  const knownKeys = new Set(vars.map((v) => v.key))
+  // Extract all $varname references (inside or outside fallback groups)
+  const unknown: string[] = []
+  const seen = new Set<string>()
+  for (const m of template.matchAll(/\$(\w+)/g)) {
+    const key = m[1]
+    if (!knownKeys.has(key) && !seen.has(key)) {
+      unknown.push(key)
+      seen.add(key)
+    }
+  }
+  if (unknown.length) {
+    return `Unknown variable${unknown.length > 1 ? 's' : ''}: ${unknown.map((k) => '$' + k).join(', ')}`
+  }
+  return ''
+}
+
+const templateValidationError = computed(() =>
+  validateTemplate(organizeTemplate.value, templateVars.value)
+)
+
 // --- Template variable hints ---
 
 interface TemplateVar {
@@ -652,12 +677,13 @@ const progressPct = computed(() => {
               </table>
             </div>
 
-            <div v-if="previewError" class="error">{{ previewError }}</div>
+            <div v-if="templateValidationError" class="template-error">{{ templateValidationError }}</div>
+            <div v-else-if="previewError" class="error">{{ previewError }}</div>
             <div class="modal-footer">
               <button class="btn-secondary" @click="closeWizard">Cancel</button>
               <button
                 class="btn-primary"
-                :disabled="previewLoading || !organizeTemplate.trim()"
+                :disabled="previewLoading || !organizeTemplate.trim() || !!templateValidationError"
                 @click="runPreview"
               >
                 {{ previewLoading ? 'Computing…' : 'Preview →' }}
@@ -1198,6 +1224,12 @@ const progressPct = computed(() => {
 }
 
 /* Variable hint table */
+.template-error {
+  margin-top: 0.6rem;
+  font-size: 0.85rem;
+  color: #b71c1c;
+}
+
 .var-table-wrap {
   margin-top: 1rem;
 }
