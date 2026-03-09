@@ -906,8 +906,8 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   right: 0;
   top: 100%;
   margin-top: 4px;
-  background: white;
-  border: 1px solid #ccc;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   z-index: 10;
@@ -927,7 +927,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 .action-item:hover {
-  background: #f5f5f5;
+  background: var(--c-hover);
 }
 
 .column-picker-wrap {
@@ -936,15 +936,16 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 
 .columns-btn {
   padding: 0.4rem 0.8rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--c-border);
   border-radius: 4px;
-  background: white;
+  background: var(--c-surface);
+  color: var(--c-text);
   cursor: pointer;
   font-size: 0.85rem;
 }
 
 .columns-btn:hover {
-  background: #f5f5f5;
+  background: var(--c-hover);
 }
 
 .column-picker {
@@ -952,8 +953,9 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   right: 0;
   top: 100%;
   margin-top: 4px;
-  background: white;
-  border: 1px solid #ccc;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
   border-radius: 6px;
   padding: 0.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -974,7 +976,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 .column-option:hover {
-  background: #f5f5f5;
+  background: var(--c-hover);
 }
 
 .column-option.dragging {
@@ -1087,11 +1089,64 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 .sheet-row:hover {
-  background: #f5f5f5;
+  background: var(--c-hover);
 }
 
 .sheet-row.selected {
   background: #e3f2fd;
+}
+
+:global(html[data-theme='dark']) .sheets-table th,
+:global(html[data-theme='dark']) .sheets-table td {
+  border-bottom-color: #3a4148;
+}
+
+:global(html[data-theme='dark']) .sheets-table th {
+  color: #b8c0c8;
+  border-bottom-color: #4a525b;
+}
+
+:global(html[data-theme='dark']) .sheets-table tbody .sheet-row:hover {
+  background: #2b323a !important;
+}
+
+:global(html[data-theme='dark']) .sheet-row.selected {
+  background: #243746;
+}
+
+:global(html[data-theme='dark']) .pagination button {
+  background: #22272e;
+  border-color: #4a525b;
+  color: #d8dee4;
+}
+
+:global(html[data-theme='dark']) .pagination span {
+  color: #b8c0c8;
+}
+
+:global(html[data-theme='dark']) .columns-btn {
+  background: #22272e;
+  border-color: #4a525b;
+  color: #d8dee4;
+}
+
+:global(html[data-theme='dark']) .columns-btn:hover {
+  background: #2b323a;
+}
+
+:global(html[data-theme='dark']) .column-picker {
+  background: #22272e;
+  border-color: #4a525b;
+  color: #d8dee4;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+:global(html[data-theme='dark']) .column-option:hover {
+  background: #2b323a;
+}
+
+:global(html[data-theme='dark']) .drag-handle {
+  color: #9ea7b0;
 }
 
 .badge {
