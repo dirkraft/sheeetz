@@ -1021,7 +1021,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   border-radius: 6px;
   padding: 0.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 10;
+  z-index: 30;
   min-width: 160px;
 }
 
