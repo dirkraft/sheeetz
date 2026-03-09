@@ -45,13 +45,17 @@ def parse_template(template: str) -> list[list]:
     return [_parse_segment(seg) for seg in template.split('/')]
 
 
-def _sanitize(s: str) -> str:
+def _sanitize(s: str, backend_type: str = 'local') -> str:
     """Remove characters invalid in file/folder names."""
+    if backend_type == 'gdrive':
+        # Google Drive permits most characters; only / and null bytes are truly invalid
+        return re.sub(r'[/\x00-\x1f]', '_', s).strip()
+    # Local filesystem: use Windows-safe set so paths are portable
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', s).strip()
 
 
 def resolve_template(
-    template: str, vars: dict[str, str]
+    template: str, vars: dict[str, str], backend_type: str = 'local'
 ) -> tuple[str | None, list[str]]:
     """Resolve a path template given variable bindings.
 
@@ -79,7 +83,7 @@ def resolve_template(
                         label = '(' + ' or '.join(f'${k}' for k in part) + ')'
                     return None, [f'No value for {label}']
                 seg_value += found
-        resolved.append(_sanitize(seg_value))
+        resolved.append(_sanitize(seg_value, backend_type))
     return '/'.join(resolved), []
 
 
