@@ -1108,11 +1108,15 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 :global(html[data-theme='dark']) .sheets-table tbody .sheet-row:hover {
-  background: #2b323a !important;
+  background: #2b323a;
 }
 
 :global(html[data-theme='dark']) .sheet-row.selected {
-  background: #1c3a52;
+  background: #0d2d45 !important;
+}
+
+:global(html[data-theme='dark']) .sheet-row.selected:hover {
+  background: #163a56 !important;
 }
 
 :global(html[data-theme='dark']) .pagination button {
