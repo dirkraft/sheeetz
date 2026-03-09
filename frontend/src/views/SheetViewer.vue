@@ -83,11 +83,6 @@ function relativeFilePath(s: SheetRecord | null) {
   return relDir ? `${relDir}/${s.filename}` : s.filename
 }
 
-function sourceFilePathLabel(s: SheetRecord | null) {
-  if (!s) return ''
-  const backend = s.backend_type === 'local' ? 'LOCAL' : 'DRIVE'
-  return `[${backend}] ${sheetFolderName(s)} : ${relativeFilePath(s)}`
-}
 
 function populateEditForm(metadata: Record<string, string>) {
   for (const field of editableFields) {
@@ -353,7 +348,9 @@ onUnmounted(() => {
           <button @click="toggleFullscreen">{{ isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}</button>
         </div>
       </div>
-      <div class="filepath-line">{{ sourceFilePathLabel(sheet) }}</div>
+      <div v-if="!isFullscreen" class="filepath-line">
+        <span class="badge" :class="sheet?.backend_type">{{ sheet?.backend_type === 'local' ? 'Local' : 'Drive' }}</span> {{ sheetFolderName(sheet) }} : {{ relativeFilePath(sheet) }}
+      </div>
       <div class="content-area">
         <div class="pages" ref="pagesRef" @click="handlePagesClick">
           <canvas ref="canvasLeftRef" class="page-canvas"></canvas>
@@ -523,6 +520,30 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  margin-right: 0.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.badge.local {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.badge.gdrive {
+  background: #fce4ec;
+  color: #c62828;
 }
 
 .content-area {

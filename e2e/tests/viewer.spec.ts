@@ -32,7 +32,8 @@ test.describe('Sheet Viewer', () => {
 
   test('shows full filepath line', async ({ page }) => {
     await expect(page.locator('.filepath-line')).toBeVisible({ timeout: 10_000 })
-    await expect(page.locator('.filepath-line')).toContainText('[LOCAL] fixtures :')
+    await expect(page.locator('.filepath-line')).toContainText('Local')
+    await expect(page.locator('.filepath-line')).toContainText('fixtures :')
     await expect(page.locator('.filepath-line')).toContainText('.pdf')
   })
 
