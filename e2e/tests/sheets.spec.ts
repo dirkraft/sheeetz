@@ -40,4 +40,15 @@ test.describe('Sheets', () => {
     await page.locator('.sheet-row').first().click()
     await expect(page).toHaveURL(/\/sheets\/\d+/)
   })
+
+  test('ctrl click row opens viewer in new tab', async ({ page, browserName }) => {
+    test.skip(browserName === 'webkit', 'Modifier click popup behavior is flaky in webkit CI')
+
+    await page.goto('/sheets')
+    const firstRow = page.locator('.sheet-row').first()
+    const popupPromise = page.waitForEvent('popup')
+    await firstRow.click({ modifiers: ['Control'] })
+    const popup = await popupPromise
+    await expect(popup).toHaveURL(/\/sheets\/\d+/)
+  })
 })

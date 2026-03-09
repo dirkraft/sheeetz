@@ -520,6 +520,34 @@ const progressPct = computed(() => {
   if (!organizeJob.value || !organizeJob.value.total) return 0
   return Math.round((organizeJob.value.processed / organizeJob.value.total) * 100)
 })
+
+function sheetHref(id: number) {
+  return router.resolve(`/sheets/${id}`).href
+}
+
+function openSheetInNewTab(id: number) {
+  window.open(sheetHref(id), '_blank', 'noopener')
+}
+
+function openSheet(id: number) {
+  router.push(`/sheets/${id}`)
+}
+
+function onRowClick(e: MouseEvent, id: number) {
+  // Respect common "open in new tab" shortcuts from desktop browsers.
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) {
+    openSheetInNewTab(id)
+    return
+  }
+  openSheet(id)
+}
+
+function onRowAuxClick(e: MouseEvent, id: number) {
+  if (e.button === 1) {
+    e.preventDefault()
+    openSheetInNewTab(id)
+  }
+}
 </script>
 
 <template>
@@ -628,7 +656,8 @@ const progressPct = computed(() => {
             :key="s.id"
             class="sheet-row"
             :class="{ selected: selectedIds.has(s.id) }"
-            @click="router.push(`/sheets/${s.id}`)"
+            @click="onRowClick($event, s.id)"
+            @auxclick="onRowAuxClick($event, s.id)"
           >
             <td class="select-col" @click.stop="toggleSelect(s.id)">
               <input
