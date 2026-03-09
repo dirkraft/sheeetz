@@ -1,50 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-
-type ThemePref = 'system' | 'light' | 'dark'
-
-const THEME_KEY = 'sheeetz.theme'
-const themePref = ref<ThemePref>('system')
-
-let mediaQuery: MediaQueryList | null = null
-
-function readSavedTheme(): ThemePref {
-  const raw = localStorage.getItem(THEME_KEY)
-  return raw === 'light' || raw === 'dark' || raw === 'system' ? raw : 'system'
-}
-
-const resolvedTheme = computed<'light' | 'dark'>(() => {
-  if (themePref.value === 'system') {
-    return mediaQuery?.matches ? 'dark' : 'light'
-  }
-  return themePref.value
-})
-
-function applyTheme() {
-  const root = document.documentElement
-  root.dataset.theme = resolvedTheme.value
-  root.style.colorScheme = resolvedTheme.value
-}
-
-function onSystemThemeChange() {
-  if (themePref.value === 'system') applyTheme()
-}
-
-watch(themePref, (value) => {
-  localStorage.setItem(THEME_KEY, value)
-  applyTheme()
-})
-
-onMounted(() => {
-  mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-  mediaQuery.addEventListener('change', onSystemThemeChange)
-  themePref.value = readSavedTheme()
-  applyTheme()
-})
-
-onUnmounted(() => {
-  mediaQuery?.removeEventListener('change', onSystemThemeChange)
-})
+import ThemeControl from './components/ThemeControl.vue'
 </script>
 
 <template>
@@ -56,14 +11,7 @@ onUnmounted(() => {
         <router-link to="/sheets">Sheets</router-link>
         <router-link to="/admin">Admin</router-link>
       </div>
-      <label class="theme-control">
-        Theme
-        <select v-model="themePref" class="theme-select" aria-label="Theme">
-          <option value="system">System</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
-      </label>
+      <ThemeControl />
     </nav>
     <main>
       <router-view v-slot="{ Component }">
@@ -97,22 +45,6 @@ nav a {
 
 nav a.router-link-active {
   color: var(--c-link);
-}
-
-.theme-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  color: var(--c-text-muted);
-}
-
-.theme-select {
-  background: var(--c-surface);
-  color: var(--c-text);
-  border: 1px solid var(--c-border);
-  border-radius: 4px;
-  padding: 0.2rem 0.45rem;
 }
 
 main {

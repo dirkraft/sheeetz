@@ -567,6 +567,14 @@ onUnmounted(() => {
   object-fit: contain;
 }
 
+:global([data-pdf-filter="sepia"] .page-canvas) {
+  filter: brightness(0.9) sepia(0.4);
+}
+
+:global([data-pdf-filter="invert"] .page-canvas) {
+  filter: invert(1) hue-rotate(180deg);
+}
+
 .status {
   display: flex;
   align-items: center;
