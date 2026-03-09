@@ -259,3 +259,7 @@ export async function addFolder(backendType: BackendType, backendFolderId: strin
 export async function removeFolder(folderId: number) {
   return apiFetch<void>(`/folders/${folderId}`, { method: 'DELETE' })
 }
+
+export async function cleanupEmptyDirs(folderId: number) {
+  return apiFetch<{ removed: number }>(`/folders/${folderId}/cleanup-empty-dirs`, { method: 'POST' })
+}

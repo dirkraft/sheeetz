@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { getConfig, getSelectedFolders, getScanStatus, removeFolder, scanFolder, type BackendType, type LibraryFolder, type ScanStatus } from '../api'
+import { cleanupEmptyDirs, getConfig, getSelectedFolders, getScanStatus, removeFolder, scanFolder, type BackendType, type LibraryFolder, type ScanStatus } from '../api'
 import FolderPicker from '../components/FolderPicker.vue'
 
 const selectedFolders = ref<LibraryFolder[]>([])
@@ -9,6 +9,8 @@ const showPicker = ref(false)
 const loading = ref(true)
 const error = ref('')
 const scanStates = ref<Map<number, ScanStatus>>(new Map())
+const cleanupLoading = ref<Set<number>>(new Set())
+const cleanupResults = ref<Map<number, string>>(new Map())
 
 const selectedIds = computed(() => new Set(selectedFolders.value.map(f => f.backend_folder_id)))
 
@@ -109,6 +111,23 @@ async function handleScan(id: number) {
     error.value = e.message
   }
 }
+
+async function handleCleanup(id: number) {
+  cleanupLoading.value = new Set([...cleanupLoading.value, id])
+  cleanupResults.value.delete(id)
+  try {
+    const result = await cleanupEmptyDirs(id)
+    const msg = result.removed > 0
+      ? `${result.removed} empty folder${result.removed === 1 ? '' : 's'} removed`
+      : 'No empty folders found'
+    cleanupResults.value = new Map([...cleanupResults.value, [id, msg]])
+  } catch (e: any) {
+    cleanupResults.value = new Map([...cleanupResults.value, [id, `Error: ${e.message}`]])
+  } finally {
+    cleanupLoading.value.delete(id)
+    cleanupLoading.value = new Set(cleanupLoading.value)
+  }
+}
 </script>
 
 <template>
@@ -158,6 +177,12 @@ async function handleScan(id: number) {
               <button class="scan-btn" :disabled="isScanning(f.id)" @click="handleScan(f.id)">
                 {{ isScanning(f.id) ? 'Scanning...' : 'Scan' }}
               </button>
+              <template v-if="f.backend_type === 'local'">
+                <button class="cleanup-btn" :disabled="cleanupLoading.has(f.id)" @click="handleCleanup(f.id)">
+                  {{ cleanupLoading.has(f.id) ? 'Cleaning...' : 'Clean up empty folders' }}
+                </button>
+                <span v-if="cleanupResults.has(f.id)" class="cleanup-result">{{ cleanupResults.get(f.id) }}</span>
+              </template>
               <button class="remove-btn" @click="handleRemove(f.id)">Remove</button>
             </div>
           </li>
@@ -214,9 +239,11 @@ async function handleScan(id: number) {
 
 .folder-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   flex-shrink: 0;
   margin-left: 1rem;
+  align-items: center;
 }
 
 .scan-status {
@@ -269,6 +296,32 @@ async function handleScan(id: number) {
 .scan-btn:disabled {
   background: #a5d6a7;
   cursor: default;
+}
+
+.cleanup-btn {
+  background: none;
+  border: 1px solid #b0bec5;
+  border-radius: 4px;
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+  color: #546e7a;
+  font-size: 0.85rem;
+}
+
+.cleanup-btn:hover:not(:disabled) {
+  border-color: #455a64;
+  color: #263238;
+}
+
+.cleanup-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.cleanup-result {
+  font-size: 0.8rem;
+  color: #4caf50;
+  align-self: center;
 }
 
 .remove-btn {

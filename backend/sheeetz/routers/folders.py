@@ -268,6 +268,44 @@ async def scan_status(
     return _task_response(task)
 
 
+@router.post("/{folder_id}/cleanup-empty-dirs")
+async def cleanup_empty_dirs(
+    folder_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(LibraryFolder).where(
+            LibraryFolder.id == folder_id,
+            LibraryFolder.user_id == user.id,
+        )
+    )
+    folder = result.scalar_one_or_none()
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+
+    if folder.backend_type != "local":
+        raise HTTPException(
+            status_code=400,
+            detail="cleanup-empty-dirs is only supported for local backend folders",
+        )
+
+    import os
+    root = folder.backend_folder_id
+    removed = 0
+    for dirpath, dirnames, filenames in os.walk(root, topdown=False):
+        if dirpath == root:
+            continue
+        try:
+            if not os.listdir(dirpath):
+                os.rmdir(dirpath)
+                removed += 1
+        except OSError:
+            pass
+
+    return {"removed": removed}
+
+
 @router.delete("/{folder_id}", status_code=204)
 async def remove_folder(
     folder_id: int,
