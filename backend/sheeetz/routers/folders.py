@@ -13,7 +13,7 @@ from ..scan_tasks import ScanTask, get_task, remove_task, start_task
 from ..storage.drive_api import (
     DriveTokenError,
     build_folder_path,
-    delete_drive_file,
+    trash_drive_file,
     get_folder_info as drive_get_folder_info,
     get_valid_token,
     list_children as drive_list_children,
@@ -326,7 +326,7 @@ async def cleanup_empty_dirs(
         # Re-check: some subfolders may have just been deleted
         children_now = await drive_list_children(access_token, folder_id)
         if not children_now:
-            await delete_drive_file(access_token, folder_id)
+            await trash_drive_file(access_token, folder_id)
             removed += 1
 
     # Recurse into the library root but never delete the root itself

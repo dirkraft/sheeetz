@@ -130,11 +130,18 @@ async def list_children(access_token: str, folder_id: str) -> list[dict]:
     return children
 
 
-async def delete_drive_file(access_token: str, file_id: str) -> None:
-    """Permanently delete a file or folder from Google Drive."""
-    headers = {"Authorization": f"Bearer {access_token}"}
+async def trash_drive_file(access_token: str, file_id: str) -> None:
+    """Move a file or folder to the Drive trash (recoverable)."""
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
     async with httpx.AsyncClient() as client:
-        resp = await client.delete(f"{DRIVE_API}/files/{file_id}", headers=headers)
+        resp = await client.patch(
+            f"{DRIVE_API}/files/{file_id}",
+            json={"trashed": True},
+            headers=headers,
+        )
         resp.raise_for_status()
 
 
