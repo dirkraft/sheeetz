@@ -343,7 +343,8 @@ function onFullscreenChange() {
   if (isFullscreen.value && showMeta.value) {
     showMeta.value = false
   }
-  // Re-render after fullscreen change to fit new dimensions
+  // Clear cache so pages re-render at the new size (not drawn from old-scale bitmaps)
+  clearPageCache()
   nextTick(() => setTimeout(renderSpread, 100))
 }
 
