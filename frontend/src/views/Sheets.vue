@@ -385,7 +385,7 @@ const templateVars = computed((): TemplateVar[] => {
 
   const builtins: TemplateVar[] = [
     { key: 'filename', count: total, total, example: stem },
-    { key: 'file_ext', count: total, total, example: ext },
+    { key: 'ext', count: total, total, example: ext },
   ]
 
   const metaVars: TemplateVar[] = Object.entries(counts)
@@ -411,7 +411,7 @@ type WizardStep = 'template' | 'preview' | 'progress' | 'done'
 
 const wizardOpen = ref(false)
 const wizardStep = ref<WizardStep>('template')
-const organizeTemplate = ref('($composer or $artist)/($title or $filename).$file_ext')
+const organizeTemplate = ref('($composer or $artist)/($title or $filename).$ext')
 const previews = ref<SheetPreview[]>([])
 const previewError = ref('')
 const previewLoading = ref(false)
@@ -712,14 +712,14 @@ function onRowAuxClick(e: MouseEvent, id: number) {
             <input
               v-model="organizeTemplate"
               class="template-input"
-              placeholder="($composer or $artist)/($title or $filename).$file_ext"
+              placeholder="($composer or $artist)/($title or $filename).$ext"
               spellcheck="false"
             />
             <div class="template-help">
               <strong>Syntax:</strong>
               <code>$key</code> references a metadata field.
               <code>($a or $b)</code> uses the first non-empty value.
-              Built-ins: <code>$filename</code> (stem), <code>$file_ext</code> (extension).
+              Built-ins: <code>$filename</code> (stem), <code>$ext</code> (extension).
               Segments separated by <code>/</code> become folders.
             </div>
 
