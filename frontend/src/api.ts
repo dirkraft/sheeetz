@@ -22,6 +22,7 @@ export async function getMe() {
 export interface UserSettings {
   columns: string[]
   organizeTemplate?: string
+  organizeTemplateHistory?: string[]
 }
 
 export async function getSettings() {
