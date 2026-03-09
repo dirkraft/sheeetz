@@ -1077,6 +1077,34 @@ const progressPct = computed(() => {
   background: #e3f2fd;
 }
 
+:global(:root[data-theme='dark']) .sheets-table th,
+:global(:root[data-theme='dark']) .sheets-table td {
+  border-bottom-color: #3a4148;
+}
+
+:global(:root[data-theme='dark']) .sheets-table th {
+  color: #b8c0c8;
+  border-bottom-color: #4a525b;
+}
+
+:global(:root[data-theme='dark']) .sheet-row:hover {
+  background: #2b323a;
+}
+
+:global(:root[data-theme='dark']) .sheet-row.selected {
+  background: #243746;
+}
+
+:global(:root[data-theme='dark']) .pagination button {
+  background: #22272e;
+  border-color: #4a525b;
+  color: #d8dee4;
+}
+
+:global(:root[data-theme='dark']) .pagination span {
+  color: #b8c0c8;
+}
+
 .badge {
   display: inline-block;
   font-size: 0.7rem;
