@@ -1094,7 +1094,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 .sheet-row.selected {
-  background: #e3f2fd;
+  background: var(--c-selected);
 }
 
 :global(html[data-theme='dark']) .sheets-table th,
@@ -1111,13 +1111,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   background: #2b323a;
 }
 
-:global(html[data-theme='dark']) .sheet-row.selected {
-  background: #0d2d45 !important;
-}
 
-:global(html[data-theme='dark']) .sheet-row.selected:hover {
-  background: #163a56 !important;
-}
 
 :global(html[data-theme='dark']) .pagination button {
   background: #22272e;
