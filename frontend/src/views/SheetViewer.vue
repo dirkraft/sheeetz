@@ -343,9 +343,7 @@ function onFullscreenChange() {
   if (isFullscreen.value && showMeta.value) {
     showMeta.value = false
   }
-  // Clear cache so pages re-render at the new size (not drawn from old-scale bitmaps)
-  clearPageCache()
-  nextTick(() => setTimeout(renderSpread, 100))
+  // ResizeObserver handles cache invalidation and re-render once dimensions settle
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -364,10 +362,7 @@ function onKeydown(e: KeyboardEvent) {
 async function toggleMeta() {
   showMeta.value = !showMeta.value
   if (showMeta.value) await loadPdfMeta()
-  // Clear cache: available width changed, old bitmaps are the wrong size
-  clearPageCache()
-  await nextTick()
-  await renderSpread()
+  // ResizeObserver handles cache invalidation and re-render once dimensions settle
 }
 
 async function loadPdfMeta() {
@@ -383,8 +378,22 @@ async function loadPdfMeta() {
   }
 }
 
-function onWindowResize() {
-  renderSpread()
+// ResizeObserver: clear cache and re-render whenever the canvas container changes size.
+// This covers fullscreen toggle, info panel open/close, window resize, and any future
+// layout changes — no need to hook each trigger manually.
+let resizeObserver: ResizeObserver | null = null
+let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let lastObservedWidth = 0
+
+function onPagesResize(entries: ResizeObserverEntry[]) {
+  const width = Math.round(entries[0].contentRect.width)
+  if (width === lastObservedWidth) return
+  lastObservedWidth = width
+  if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer)
+  resizeDebounceTimer = setTimeout(() => {
+    clearPageCache()
+    renderSpread()
+  }, 80)
 }
 
 watch(pageLeft, renderSpread)
@@ -394,7 +403,6 @@ onMounted(async () => {
 
   document.addEventListener('fullscreenchange', onFullscreenChange)
   document.addEventListener('keydown', onKeydown)
-  window.addEventListener('resize', onWindowResize)
 
   try {
     const [sheetData, pdfData, foldersData] = await Promise.all([
@@ -414,6 +422,14 @@ onMounted(async () => {
 
     await nextTick()
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+    // Start ResizeObserver now that pagesRef is in the DOM
+    if (pagesRef.value) {
+      lastObservedWidth = pagesRef.value.offsetWidth
+      resizeObserver = new ResizeObserver(onPagesResize)
+      resizeObserver.observe(pagesRef.value)
+    }
+
     await renderSpread()
   } catch (e: any) {
     error.value = e.message
@@ -424,7 +440,8 @@ onMounted(async () => {
 onUnmounted(() => {
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   document.removeEventListener('keydown', onKeydown)
-  window.removeEventListener('resize', onWindowResize)
+  resizeObserver?.disconnect()
+  if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer)
   pdfDoc?.destroy()
   clearPageCache()
 })
