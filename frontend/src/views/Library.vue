@@ -177,12 +177,10 @@ async function handleCleanup(id: number) {
               <button class="scan-btn" :disabled="isScanning(f.id)" @click="handleScan(f.id)">
                 {{ isScanning(f.id) ? 'Scanning...' : 'Scan' }}
               </button>
-              <template v-if="f.backend_type === 'local'">
-                <button class="cleanup-btn" :disabled="cleanupLoading.has(f.id)" @click="handleCleanup(f.id)">
-                  {{ cleanupLoading.has(f.id) ? 'Cleaning...' : 'Clean up empty folders' }}
-                </button>
-                <span v-if="cleanupResults.has(f.id)" class="cleanup-result">{{ cleanupResults.get(f.id) }}</span>
-              </template>
+              <button class="cleanup-btn" :disabled="cleanupLoading.has(f.id)" @click="handleCleanup(f.id)">
+                {{ cleanupLoading.has(f.id) ? 'Cleaning...' : 'Clean up empty folders' }}
+              </button>
+              <span v-if="cleanupResults.has(f.id)" class="cleanup-result">{{ cleanupResults.get(f.id) }}</span>
               <button class="remove-btn" @click="handleRemove(f.id)">Remove</button>
             </div>
           </li>

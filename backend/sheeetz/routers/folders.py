@@ -13,8 +13,10 @@ from ..scan_tasks import ScanTask, get_task, remove_task, start_task
 from ..storage.drive_api import (
     DriveTokenError,
     build_folder_path,
+    delete_drive_file,
     get_folder_info as drive_get_folder_info,
     get_valid_token,
+    list_children as drive_list_children,
     list_folders as drive_list_folders,
 )
 from ..storage.local import (
@@ -284,24 +286,54 @@ async def cleanup_empty_dirs(
     if not folder:
         raise HTTPException(status_code=404, detail="Folder not found")
 
-    if folder.backend_type != "local":
-        raise HTTPException(
-            status_code=400,
-            detail="cleanup-empty-dirs is only supported for local backend folders",
-        )
+    if folder.backend_type == "local":
+        import os
+        root = folder.backend_folder_id
+        removed = 0
+        for dirpath, dirnames, filenames in os.walk(root, topdown=False):
+            if dirpath == root:
+                continue
+            try:
+                if not os.listdir(dirpath):
+                    os.rmdir(dirpath)
+                    removed += 1
+            except OSError:
+                pass
+        return {"removed": removed}
 
-    import os
-    root = folder.backend_folder_id
+    # gdrive: recursively find and delete empty folders (bottom-up)
+    try:
+        access_token, updated_json = await get_valid_token(user)
+    except DriveTokenError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    if updated_json != user.drive_token_json:
+        user.drive_token_json = updated_json
+        await db.commit()
+
+    FOLDER_MIME = "application/vnd.google-apps.folder"
     removed = 0
-    for dirpath, dirnames, filenames in os.walk(root, topdown=False):
-        if dirpath == root:
-            continue
-        try:
-            if not os.listdir(dirpath):
-                os.rmdir(dirpath)
-                removed += 1
-        except OSError:
-            pass
+
+    async def delete_empty_subfolders(folder_id: str) -> None:
+        """Recursively delete empty subfolders bottom-up, skipping the root."""
+        nonlocal removed
+        children = await drive_list_children(access_token, folder_id)
+        subfolders = [c for c in children if c["mimeType"] == FOLDER_MIME]
+
+        # Recurse into subfolders first (bottom-up)
+        for sub in subfolders:
+            await delete_empty_subfolders(sub["id"])
+
+        # Re-check: some subfolders may have just been deleted
+        children_now = await drive_list_children(access_token, folder_id)
+        if not children_now:
+            await delete_drive_file(access_token, folder_id)
+            removed += 1
+
+    # Recurse into the library root but never delete the root itself
+    root_children = await drive_list_children(access_token, folder.backend_folder_id)
+    for child in root_children:
+        if child["mimeType"] == FOLDER_MIME:
+            await delete_empty_subfolders(child["id"])
 
     return {"removed": removed}
 
