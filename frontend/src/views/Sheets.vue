@@ -1077,32 +1077,57 @@ const progressPct = computed(() => {
   background: #e3f2fd;
 }
 
-:global(:root[data-theme='dark']) .sheets-table th,
-:global(:root[data-theme='dark']) .sheets-table td {
+:global(html[data-theme='dark']) .sheets-table th,
+:global(html[data-theme='dark']) .sheets-table td {
   border-bottom-color: #3a4148;
 }
 
-:global(:root[data-theme='dark']) .sheets-table th {
+:global(html[data-theme='dark']) .sheets-table th {
   color: #b8c0c8;
   border-bottom-color: #4a525b;
 }
 
-:global(:root[data-theme='dark']) .sheet-row:hover {
-  background: #2b323a;
+:global(html[data-theme='dark']) .sheets-table tbody .sheet-row:hover {
+  background: #2b323a !important;
 }
 
-:global(:root[data-theme='dark']) .sheet-row.selected {
+:global(html[data-theme='dark']) .sheet-row.selected {
   background: #243746;
 }
 
-:global(:root[data-theme='dark']) .pagination button {
+:global(html[data-theme='dark']) .pagination button {
   background: #22272e;
   border-color: #4a525b;
   color: #d8dee4;
 }
 
-:global(:root[data-theme='dark']) .pagination span {
+:global(html[data-theme='dark']) .pagination span {
   color: #b8c0c8;
+}
+
+:global(html[data-theme='dark']) .columns-btn {
+  background: #22272e;
+  border-color: #4a525b;
+  color: #d8dee4;
+}
+
+:global(html[data-theme='dark']) .columns-btn:hover {
+  background: #2b323a;
+}
+
+:global(html[data-theme='dark']) .column-picker {
+  background: #22272e;
+  border-color: #4a525b;
+  color: #d8dee4;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+:global(html[data-theme='dark']) .column-option:hover {
+  background: #2b323a;
+}
+
+:global(html[data-theme='dark']) .drag-handle {
+  color: #9ea7b0;
 }
 
 .badge {
