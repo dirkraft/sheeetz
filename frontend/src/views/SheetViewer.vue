@@ -349,7 +349,7 @@ onUnmounted(() => {
         </div>
       </div>
       <div v-if="!isFullscreen" class="filepath-line">
-        <span class="badge" :class="sheet?.backend_type">{{ sheet?.backend_type === 'local' ? 'Local' : 'Drive' }}</span>{{ sheetFolderName(sheet) }} : {{ relativeFilePath(sheet) }}
+        <span class="badge" :class="sheet?.backend_type">{{ sheet?.backend_type === 'local' ? 'Local' : 'Drive' }}</span> {{ sheetFolderName(sheet) }} : {{ relativeFilePath(sheet) }}
       </div>
       <div class="content-area">
         <div class="pages" ref="pagesRef" @click="handlePagesClick">
