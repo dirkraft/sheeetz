@@ -56,6 +56,7 @@ export interface SheetListResult {
 
 export interface SheetListParams {
   search?: string
+  sort_keys?: string[]
   filename?: string
   folder_id?: number
   meta_key?: string
@@ -83,7 +84,7 @@ export async function getSheets(params: SheetListParams = {}) {
   const qs = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) {
     if (v === undefined || v === null) continue
-    if (k === 'meta_filters') {
+    if (k === 'meta_filters' || k === 'sort_keys') {
       qs.set(k, JSON.stringify(v))
     } else {
       qs.set(k, String(v))

@@ -60,6 +60,37 @@ async def test_search_does_not_match_metadata_key(client):
     assert data["total"] == 0
 
 
+async def test_sort_keys_left_to_right_priority(client):
+    await _scan_fixtures(client)
+    data = (await client.get("/sheets")).json()
+    by_name = {s["filename"]: s["id"] for s in data["sheets"]}
+
+    # Set arranger to force opposite order from filename sort
+    await client.patch(f"/sheets/{by_name['sample.pdf']}/metadata", json={"arranger": "A"})
+    await client.patch(f"/sheets/{by_name['nested.pdf']}/metadata", json={"arranger": "B"})
+
+    resp1 = await client.get("/sheets", params={"sort_keys": json.dumps(["filename", "arranger"])})
+    names1 = [s["filename"] for s in resp1.json()["sheets"]]
+    assert names1 == ["nested.pdf", "sample.pdf"]
+
+    resp2 = await client.get("/sheets", params={"sort_keys": json.dumps(["arranger", "filename"])})
+    names2 = [s["filename"] for s in resp2.json()["sheets"]]
+    assert names2 == ["sample.pdf", "nested.pdf"]
+
+
+async def test_sort_keys_nulls_last(client):
+    await _scan_fixtures(client)
+    data = (await client.get("/sheets")).json()
+    by_name = {s["filename"]: s["id"] for s in data["sheets"]}
+
+    key = "__issue25_nulls_last_test__"
+    # Only one sheet has this key => it should sort before null entries.
+    await client.patch(f"/sheets/{by_name['nested.pdf']}/metadata", json={key: "Alpha"})
+    resp = await client.get("/sheets", params={"sort_keys": json.dumps([key])})
+    names = [s["filename"] for s in resp.json()["sheets"]]
+    assert names[0] == "nested.pdf"
+
+
 async def test_get_sheet_detail(client):
     await _scan_fixtures(client)
     sheets = await client.get("/sheets")

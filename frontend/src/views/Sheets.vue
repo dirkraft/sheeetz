@@ -113,6 +113,8 @@ function toggleColumn(key: string) {
   // Trigger reactivity
   activeSet.value = new Set(activeSet.value)
   saveColumns()
+  page.value = 1
+  load()
 }
 
 function getActiveKeysInOrder(): string[] {
@@ -158,6 +160,8 @@ function onDrop(idx: number) {
   dragIdx.value = null
   dropIdx.value = null
   saveColumns()
+  page.value = 1
+  load()
 }
 
 function onDragEnd() {
@@ -174,8 +178,6 @@ const pageSize = 50
 
 const filterSearch = ref('')
 const filterFolderId = ref<number | null>(null)
-const sortBy = ref('filename')
-const sortDir = ref<'asc' | 'desc'>('asc')
 
 const folders = ref<LibraryFolder[]>([])
 const loading = ref(false)
@@ -184,6 +186,19 @@ const error = ref('')
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 const initialized = ref(false)
 
+function getSortKeysInOrder(): string[] {
+  const seen = new Set<string>()
+  const keys: string[] = []
+  for (const key of getActiveKeysInOrder()) {
+    const col = columnMap.value[key]
+    const sortKey = col?.sortKey || key
+    if (seen.has(sortKey)) continue
+    seen.add(sortKey)
+    keys.push(sortKey)
+  }
+  return keys
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -191,8 +206,7 @@ async function load() {
     const data = await getSheets({
       search: filterSearch.value || undefined,
       folder_id: filterFolderId.value ?? undefined,
-      sort_by: sortBy.value,
-      sort_dir: sortDir.value,
+      sort_keys: getSortKeysInOrder(),
       page: page.value,
       page_size: pageSize,
     })
@@ -222,7 +236,7 @@ function debouncedLoad() {
 }
 
 watch(filterSearch, debouncedLoad)
-watch([filterFolderId, sortBy, sortDir], () => {
+watch([filterFolderId], () => {
   page.value = 1
   load()
 })
@@ -277,21 +291,6 @@ const totalPages = ref(0)
 watch(total, (t) => {
   totalPages.value = Math.ceil(t / pageSize)
 })
-
-function toggleSort(col: ColumnDef) {
-  if (!col.sortKey) return
-  if (sortBy.value === col.sortKey) {
-    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
-  } else {
-    sortBy.value = col.sortKey
-    sortDir.value = 'asc'
-  }
-}
-
-function sortIndicator(col: ColumnDef) {
-  if (!col.sortKey || sortBy.value !== col.sortKey) return ''
-  return sortDir.value === 'asc' ? ' \u2191' : ' \u2193'
-}
 
 // --- Selection ---
 
@@ -618,10 +617,8 @@ const progressPct = computed(() => {
             <th
               v-for="col in activeColumns"
               :key="col.key"
-              :class="{ sortable: !!col.sortKey }"
-              @click="toggleSort(col)"
             >
-              {{ col.label }}{{ sortIndicator(col) }}
+              {{ col.label }}
             </th>
           </tr>
         </thead>
@@ -1054,15 +1051,6 @@ const progressPct = computed(() => {
 .select-col {
   width: 2rem;
   padding-right: 0;
-}
-
-.sortable {
-  cursor: pointer;
-  user-select: none;
-}
-
-.sortable:hover {
-  color: #333;
 }
 
 .sheet-row {

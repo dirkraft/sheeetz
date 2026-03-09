@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
@@ -76,6 +76,7 @@ async def list_sheets(
     meta_key: str | None = None,
     meta_value: str | None = None,
     meta_filters: str | None = Query(None, description="JSON dict of {field: substring} filters"),
+    sort_keys: str | None = Query(None, description="JSON array of sort keys in priority order"),
     sort_by: str = "filename",
     sort_dir: str = "asc",
     page: int = 1,
@@ -140,19 +141,57 @@ async def list_sheets(
                 & (meta_alias.value.ilike(f"%{field_value}%")),
             )
 
-    # Sorting: direct columns use the model attribute; anything else is a metadata key
-    direct_sort_cols = {"filename": Sheet.filename, "folder_path": Sheet.folder_path}
-    if sort_by in direct_sort_cols:
-        sort_col = direct_sort_cols[sort_by]
-    else:
-        # Sort by metadata value via LEFT JOIN
-        sort_meta = aliased(SheetMeta)
-        query = query.outerjoin(
-            sort_meta,
-            (sort_meta.sheet_id == Sheet.id) & (sort_meta.key == sort_by),
+    sort_keys_list: list[str] = []
+    if sort_keys:
+        try:
+            parsed = json.loads(sort_keys)
+        except (json.JSONDecodeError, TypeError):
+            raise HTTPException(status_code=400, detail="sort_keys must be valid JSON array")
+        if not isinstance(parsed, list):
+            raise HTTPException(status_code=400, detail="sort_keys must be a JSON array")
+        sort_keys_list = [k for k in parsed if isinstance(k, str) and k]
+
+    if not sort_keys_list:
+        # Backward-compatible fallback for callers that still pass sort_by
+        sort_keys_list = [sort_by]
+
+    direct_sort_cols = {
+        "filename": Sheet.filename,
+        "folder_path": Sheet.folder_path,
+        "backend_type": Sheet.backend_type,
+    }
+    sort_meta_aliases: dict[str, object] = {}
+    order_clauses = []
+    for key in sort_keys_list:
+        if key in direct_sort_cols:
+            sort_col = direct_sort_cols[key]
+        else:
+            sort_meta = sort_meta_aliases.get(key)
+            if sort_meta is None:
+                sort_meta = aliased(SheetMeta)
+                sort_meta_aliases[key] = sort_meta
+                query = query.outerjoin(
+                    sort_meta,
+                    (sort_meta.sheet_id == Sheet.id) & (sort_meta.key == key),
+                )
+            sort_col = sort_meta.value
+
+        # Null/blank values sort after non-empty values.
+        order_clauses.append(
+            case(
+                (
+                    or_(sort_col.is_(None), sort_col == ""),
+                    1,
+                ),
+                else_=0,
+            ).asc()
         )
-        sort_col = sort_meta.value
-    query = query.order_by(sort_col.asc() if sort_dir == "asc" else sort_col.desc())
+        # Always ascending for visible-column left-to-right sort behavior.
+        order_clauses.append(sort_col.asc())
+
+    # Stable tie-breaker
+    order_clauses.append(Sheet.id.asc())
+    query = query.order_by(*order_clauses)
 
     count_q = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_q)).scalar_one()
