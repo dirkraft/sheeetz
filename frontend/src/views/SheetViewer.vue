@@ -364,7 +364,8 @@ function onKeydown(e: KeyboardEvent) {
 async function toggleMeta() {
   showMeta.value = !showMeta.value
   if (showMeta.value) await loadPdfMeta()
-  // Re-render since available width changed
+  // Clear cache: available width changed, old bitmaps are the wrong size
+  clearPageCache()
   await nextTick()
   await renderSpread()
 }
