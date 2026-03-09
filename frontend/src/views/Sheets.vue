@@ -989,7 +989,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 .drag-handle {
-  color: #aaa;
+  color: var(--c-text-muted);
   font-size: 0.75rem;
   line-height: 1;
   flex-shrink: 0;
@@ -1005,7 +1005,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 
 .custom-tag {
   font-size: 0.65rem;
-  color: #888;
+  color: var(--c-text-muted);
   font-style: italic;
   margin-left: 0.2rem;
 }
@@ -1021,7 +1021,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   flex: 1;
   min-width: 200px;
   padding: 0.5rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--c-border);
   border-radius: 4px;
   font-size: 0.9rem;
 }
@@ -1033,7 +1033,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 
 .filter-select {
   padding: 0.5rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--c-border);
   border-radius: 4px;
   font-size: 0.9rem;
 }
@@ -1046,7 +1046,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 .result-count {
-  color: #666;
+  color: var(--c-text-muted);
   font-size: 0.85rem;
   margin: 0;
 }
@@ -1070,14 +1070,14 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 .sheets-table td {
   text-align: left;
   padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--c-border);
 }
 
 .sheets-table th {
   font-weight: 600;
   font-size: 0.85rem;
-  color: #555;
-  border-bottom: 2px solid #ddd;
+  color: var(--c-text-muted);
+  border-bottom: 2px solid var(--c-border);
 }
 
 .select-col {
@@ -1094,7 +1094,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 .sheet-row.selected {
-  background: #e3f2fd;
+  background: var(--c-selected);
 }
 
 :global(html[data-theme='dark']) .sheets-table th,
@@ -1108,12 +1108,10 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 :global(html[data-theme='dark']) .sheets-table tbody .sheet-row:hover {
-  background: #2b323a !important;
+  background: #2b323a;
 }
 
-:global(html[data-theme='dark']) .sheet-row.selected {
-  background: #243746;
-}
+
 
 :global(html[data-theme='dark']) .pagination button {
   background: #22272e;
@@ -1186,9 +1184,10 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 
 .pagination button {
   padding: 0.4rem 0.8rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--c-border);
   border-radius: 4px;
-  background: white;
+  background: var(--c-surface);
+  color: var(--c-text);
   cursor: pointer;
 }
 
@@ -1199,11 +1198,11 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 
 .pagination span {
   font-size: 0.9rem;
-  color: #666;
+  color: var(--c-text-muted);
 }
 
 .empty {
-  color: #666;
+  color: var(--c-text-muted);
   margin: 2rem 0;
 }
 
@@ -1213,7 +1212,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 .loading {
-  color: #666;
+  color: var(--c-text-muted);
   margin: 2rem 0;
 }
 
@@ -1230,7 +1229,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 .modal {
-  background: white;
+  background: var(--c-surface);
   border-radius: 8px;
   width: min(860px, 95vw);
   max-height: 90vh;
@@ -1244,7 +1243,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--c-border);
 }
 
 .modal-header h2 {
@@ -1257,7 +1256,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   border: none;
   font-size: 1.1rem;
   cursor: pointer;
-  color: #666;
+  color: var(--c-text-muted);
   padding: 0.2rem;
 }
 
@@ -1296,19 +1295,20 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 
 .btn-secondary {
   padding: 0.5rem 1.2rem;
-  background: white;
-  border: 1px solid #ccc;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.9rem;
+  color: var(--c-text);
 }
 
 .btn-secondary:hover {
-  background: #f5f5f5;
+  background: var(--c-hover);
 }
 
 .wizard-desc {
-  color: #555;
+  color: var(--c-text-muted);
   margin-bottom: 1rem;
 }
 
@@ -1323,21 +1323,23 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   width: 100%;
   box-sizing: border-box;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--c-border);
   border-radius: 4px;
   font-family: monospace;
   font-size: 0.95rem;
+  background: var(--c-bg);
+  color: var(--c-text);
 }
 
 .template-help {
   margin-top: 0.75rem;
   font-size: 0.82rem;
-  color: #666;
+  color: var(--c-text-muted);
   line-height: 1.5;
 }
 
 .template-help code {
-  background: #f4f4f4;
+  background: var(--c-hover);
   padding: 0.1em 0.3em;
   border-radius: 3px;
   font-family: monospace;
@@ -1357,7 +1359,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 .var-table-label {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #555;
+  color: var(--c-text-muted);
   margin-bottom: 0.35rem;
 }
 
@@ -1370,14 +1372,14 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 .var-table th,
 .var-table td {
   padding: 0.3rem 0.5rem;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--c-border);
   text-align: left;
 }
 
 .var-table th {
   font-weight: 600;
-  color: #666;
-  border-bottom: 1px solid #ddd;
+  color: var(--c-text-muted);
+  border-bottom: 1px solid var(--c-border);
 }
 
 .var-name {
@@ -1394,7 +1396,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 .example-cell {
-  color: #666;
+  color: var(--c-text-muted);
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1406,7 +1408,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   overflow-x: auto;
   max-height: 400px;
   overflow-y: auto;
-  border: 1px solid #eee;
+  border: 1px solid var(--c-border);
   border-radius: 4px;
 }
 
@@ -1419,17 +1421,17 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 .preview-table th,
 .preview-table td {
   padding: 0.5rem 0.6rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--c-border);
   text-align: left;
 }
 
 .preview-table th {
   font-weight: 600;
-  color: #555;
+  color: var(--c-text-muted);
   position: sticky;
   top: 0;
-  background: white;
-  border-bottom: 2px solid #ddd;
+  background: var(--c-surface);
+  border-bottom: 2px solid var(--c-border);
 }
 
 .row-disabled {
@@ -1452,7 +1454,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 .path-from {
-  color: #555;
+  color: var(--c-text-muted);
 }
 
 .path-to {
@@ -1505,7 +1507,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 
 .progress-bar {
   height: 8px;
-  background: #eee;
+  background: var(--c-border);
   border-radius: 4px;
   overflow: hidden;
   margin-bottom: 0.5rem;
@@ -1519,11 +1521,11 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 
 .progress-label {
   font-size: 0.85rem;
-  color: #555;
+  color: var(--c-text-muted);
 }
 
 .current-file {
-  color: #888;
+  color: var(--c-text-muted);
 }
 
 /* Done */
