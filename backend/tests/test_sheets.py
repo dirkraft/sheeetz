@@ -91,6 +91,22 @@ async def test_sort_keys_nulls_last(client):
     assert names[0] == "nested.pdf"
 
 
+async def test_sort_numeric_columns(client):
+    """Numeric metadata values should sort as numbers, not strings (2 < 10)."""
+    await _scan_fixtures(client)
+    data = (await client.get("/sheets")).json()
+    by_name = {s["filename"]: s["id"] for s in data["sheets"]}
+
+    key = "__issue40_numeric_sort_test__"
+    await client.patch(f"/sheets/{by_name['sample.pdf']}/metadata", json={key: "10"})
+    await client.patch(f"/sheets/{by_name['nested.pdf']}/metadata", json={key: "2"})
+
+    resp = await client.get("/sheets", params={"sort_keys": json.dumps([key])})
+    names = [s["filename"] for s in resp.json()["sheets"] if s["metadata"].get(key)]
+    # Numeric sort: 2 < 10; string sort would give 10 < 2
+    assert names == ["nested.pdf", "sample.pdf"]
+
+
 async def test_get_sheet_detail(client):
     await _scan_fixtures(client)
     sheets = await client.get("/sheets")
