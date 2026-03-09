@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
-from sqlalchemy import case, exists, func, or_, select
+from sqlalchemy import Float, case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
@@ -186,8 +186,16 @@ async def list_sheets(
                 else_=0,
             ).asc()
         )
-        # Always ascending for visible-column left-to-right sort behavior.
-        order_clauses.append(sort_col.asc())
+        # Numeric-aware sort: values that look like numbers (start with a digit)
+        # are cast to REAL so they sort numerically. In SQLite, REAL < TEXT in
+        # type ordering, so numeric values naturally precede non-numeric ones.
+        # For purely-numeric columns (e.g. pages) this gives correct 2 < 10 order.
+        order_clauses.append(
+            case(
+                (sort_col.op("GLOB")("[0-9]*"), func.cast(sort_col, Float)),
+                else_=sort_col,
+            ).asc()
+        )
 
     # Stable tie-breaker
     order_clauses.append(Sheet.id.asc())
