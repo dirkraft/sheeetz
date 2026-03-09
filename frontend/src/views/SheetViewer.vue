@@ -144,6 +144,15 @@ async function saveMetadata() {
 
 let pdfDoc: pdfjsLib.PDFDocumentProxy | null = null
 
+// Render generation counter — incremented every time renderSpread() starts so
+// that any in-flight async render that was launched for a previous generation
+// knows to abort rather than write stale pixels to the canvas.
+let renderGen = 0
+
+// Active pdfjs render tasks keyed by canvas identity so we can cancel them
+// before starting a new render on the same canvas.
+const activeRenderTasks = new Map<HTMLCanvasElement, pdfjsLib.RenderTask>()
+
 // Page cache for pre-rendered bitmaps
 interface CachedPage {
   bitmap: ImageBitmap
@@ -189,11 +198,17 @@ function getRenderScale(
   return Math.max(Math.min(scaleByWidth, scaleByHeight), 0.01)
 }
 
-async function renderPage(pageNum: number, canvas: HTMLCanvasElement, visiblePages: number) {
+async function renderPage(
+  pageNum: number,
+  canvas: HTMLCanvasElement,
+  visiblePages: number,
+  gen: number,
+) {
   if (!pdfDoc || pageNum < 1 || pageNum > totalPages.value) return
 
   const cached = pageCache.get(pageNum)
   if (cached) {
+    if (gen !== renderGen) return // stale — a newer render has already started
     canvas.width = cached.pixelWidth
     canvas.height = cached.pixelHeight
     canvas.style.width = cached.cssWidth
@@ -203,7 +218,18 @@ async function renderPage(pageNum: number, canvas: HTMLCanvasElement, visiblePag
     return
   }
 
+  // Cancel any previous in-flight pdfjs render task on this canvas.
+  const prevTask = activeRenderTasks.get(canvas)
+  if (prevTask) {
+    prevTask.cancel()
+    activeRenderTasks.delete(canvas)
+  }
+
+  if (gen !== renderGen) return // stale before we even start
+
   const page = await pdfDoc.getPage(pageNum)
+  if (gen !== renderGen || !pdfDoc) return // stale after async getPage
+
   const container = pagesRef.value || canvas.parentElement
   if (!container) return
   const viewport = page.getViewport({ scale: 1 })
@@ -220,7 +246,22 @@ async function renderPage(pageNum: number, canvas: HTMLCanvasElement, visiblePag
 
   const ctx = canvas.getContext('2d')!
   ctx.scale(dpr, dpr)
-  await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise
+  const renderTask = page.render({ canvasContext: ctx, viewport: scaledViewport })
+  activeRenderTasks.set(canvas, renderTask)
+  try {
+    await renderTask.promise
+  } catch (e: any) {
+    // RenderingCancelledException is expected when we cancel — ignore it.
+    if (e?.name === 'RenderingCancelledException') return
+    throw e
+  } finally {
+    // Clean up task tracking regardless of outcome.
+    if (activeRenderTasks.get(canvas) === renderTask) {
+      activeRenderTasks.delete(canvas)
+    }
+  }
+
+  if (gen !== renderGen || !pdfDoc) return // stale after async render
 
   // Cache the rendered result as an ImageBitmap
   try {
@@ -238,11 +279,15 @@ async function renderPage(pageNum: number, canvas: HTMLCanvasElement, visiblePag
   }
 }
 
-async function prerenderPage(pageNum: number, visiblePages: number) {
+async function prerenderPage(pageNum: number, visiblePages: number, gen: number) {
   if (!pdfDoc || pageNum < 1 || pageNum > totalPages.value) return
   if (pageCache.has(pageNum)) return
+  if (gen !== renderGen) return // stale before starting
 
   const page = await pdfDoc.getPage(pageNum)
+  if (gen !== renderGen || !pdfDoc) return // stale after async getPage
+  if (pageCache.has(pageNum)) return // populated while we awaited
+
   const container = pagesRef.value
   if (!container) return
   const viewport = page.getViewport({ scale: 1 })
@@ -259,7 +304,15 @@ async function prerenderPage(pageNum: number, visiblePages: number) {
 
   const ctx = offscreen.getContext('2d')!
   ctx.scale(dpr, dpr)
-  await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise
+  const renderTask = page.render({ canvasContext: ctx, viewport: scaledViewport })
+  try {
+    await renderTask.promise
+  } catch (e: any) {
+    if (e?.name === 'RenderingCancelledException') return
+    return // Non-critical — skip caching on any error
+  }
+
+  if (gen !== renderGen || !pdfDoc) return // stale after async render
 
   try {
     evictCacheIfNeeded()
@@ -281,24 +334,33 @@ async function renderSpread() {
   const left = canvasLeftRef.value
   const right = canvasRightRef.value
   if (!left) return
+
+  // Bump the generation counter so any in-flight renders from previous
+  // invocations know they are stale and should abort.
+  const gen = ++renderGen
+
   const visiblePages = pageLeft.value + 1 <= totalPages.value ? 2 : 1
 
-  await renderPage(pageLeft.value, left, visiblePages)
+  await renderPage(pageLeft.value, left, visiblePages, gen)
+
+  if (gen !== renderGen) return // page changed while rendering left page
 
   if (right && pageLeft.value + 1 <= totalPages.value) {
     right.style.display = ''
-    await renderPage(pageLeft.value + 1, right, visiblePages)
+    await renderPage(pageLeft.value + 1, right, visiblePages, gen)
   } else if (right) {
     right.style.display = 'none'
   }
 
+  if (gen !== renderGen) return // page changed while rendering right page
+
   // Fire-and-forget: pre-render adjacent spreads in the background
   const pl = pageLeft.value
   setTimeout(() => {
-    prerenderPage(pl + 2, 2)
-    prerenderPage(pl + 3, 2)
-    prerenderPage(pl - 1, 2)
-    prerenderPage(pl - 2, 2)
+    prerenderPage(pl + 2, 2, gen)
+    prerenderPage(pl + 3, 2, gen)
+    prerenderPage(pl - 1, 2, gen)
+    prerenderPage(pl - 2, 2, gen)
   }, 0)
 }
 
@@ -450,7 +512,15 @@ onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
   resizeObserver?.disconnect()
   if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer)
+  // Invalidate generation so any in-flight async render callbacks abort.
+  renderGen++
+  // Cancel any active pdfjs render tasks so they don't throw after destroy.
+  for (const task of activeRenderTasks.values()) {
+    task.cancel()
+  }
+  activeRenderTasks.clear()
   pdfDoc?.destroy()
+  pdfDoc = null
   clearPageCache()
 })
 </script>
