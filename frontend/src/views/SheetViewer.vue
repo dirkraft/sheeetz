@@ -144,6 +144,33 @@ async function saveMetadata() {
 
 let pdfDoc: pdfjsLib.PDFDocumentProxy | null = null
 
+// Page cache for pre-rendered bitmaps
+interface CachedPage {
+  bitmap: ImageBitmap
+  cssWidth: string
+  cssHeight: string
+  pixelWidth: number
+  pixelHeight: number
+}
+const pageCache = new Map<number, CachedPage>()
+const PAGE_CACHE_MAX = 20
+
+function evictCacheIfNeeded() {
+  while (pageCache.size >= PAGE_CACHE_MAX) {
+    const oldest = pageCache.keys().next().value
+    const entry = pageCache.get(oldest!)
+    if (entry) entry.bitmap.close()
+    pageCache.delete(oldest!)
+  }
+}
+
+function clearPageCache() {
+  for (const entry of pageCache.values()) {
+    entry.bitmap.close()
+  }
+  pageCache.clear()
+}
+
 function getRenderScale(
   viewport: pdfjsLib.PageViewport,
   container: HTMLElement,
@@ -164,6 +191,18 @@ function getRenderScale(
 
 async function renderPage(pageNum: number, canvas: HTMLCanvasElement, visiblePages: number) {
   if (!pdfDoc || pageNum < 1 || pageNum > totalPages.value) return
+
+  const cached = pageCache.get(pageNum)
+  if (cached) {
+    canvas.width = cached.pixelWidth
+    canvas.height = cached.pixelHeight
+    canvas.style.width = cached.cssWidth
+    canvas.style.height = cached.cssHeight
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(cached.bitmap, 0, 0)
+    return
+  }
+
   const page = await pdfDoc.getPage(pageNum)
   const container = pagesRef.value || canvas.parentElement
   if (!container) return
@@ -172,14 +211,69 @@ async function renderPage(pageNum: number, canvas: HTMLCanvasElement, visiblePag
   const scaledViewport = page.getViewport({ scale })
 
   const dpr = window.devicePixelRatio || 1
-  canvas.width = Math.floor(scaledViewport.width * dpr)
-  canvas.height = Math.floor(scaledViewport.height * dpr)
+  const pixelWidth = Math.floor(scaledViewport.width * dpr)
+  const pixelHeight = Math.floor(scaledViewport.height * dpr)
+  canvas.width = pixelWidth
+  canvas.height = pixelHeight
   canvas.style.width = `${scaledViewport.width}px`
   canvas.style.height = `${scaledViewport.height}px`
 
   const ctx = canvas.getContext('2d')!
   ctx.scale(dpr, dpr)
   await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise
+
+  // Cache the rendered result as an ImageBitmap
+  try {
+    evictCacheIfNeeded()
+    const bitmap = await createImageBitmap(canvas)
+    pageCache.set(pageNum, {
+      bitmap,
+      cssWidth: canvas.style.width,
+      cssHeight: canvas.style.height,
+      pixelWidth,
+      pixelHeight,
+    })
+  } catch {
+    // Non-critical — cache miss is fine
+  }
+}
+
+async function prerenderPage(pageNum: number, visiblePages: number) {
+  if (!pdfDoc || pageNum < 1 || pageNum > totalPages.value) return
+  if (pageCache.has(pageNum)) return
+
+  const page = await pdfDoc.getPage(pageNum)
+  const container = pagesRef.value
+  if (!container) return
+  const viewport = page.getViewport({ scale: 1 })
+  const scale = getRenderScale(viewport, container, visiblePages)
+  const scaledViewport = page.getViewport({ scale })
+
+  const dpr = window.devicePixelRatio || 1
+  const pixelWidth = Math.floor(scaledViewport.width * dpr)
+  const pixelHeight = Math.floor(scaledViewport.height * dpr)
+
+  const offscreen = document.createElement('canvas')
+  offscreen.width = pixelWidth
+  offscreen.height = pixelHeight
+
+  const ctx = offscreen.getContext('2d')!
+  ctx.scale(dpr, dpr)
+  await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise
+
+  try {
+    evictCacheIfNeeded()
+    const bitmap = await createImageBitmap(offscreen)
+    pageCache.set(pageNum, {
+      bitmap,
+      cssWidth: `${scaledViewport.width}px`,
+      cssHeight: `${scaledViewport.height}px`,
+      pixelWidth,
+      pixelHeight,
+    })
+  } catch {
+    // Non-critical
+  }
 }
 
 async function renderSpread() {
@@ -197,6 +291,15 @@ async function renderSpread() {
   } else if (right) {
     right.style.display = 'none'
   }
+
+  // Fire-and-forget: pre-render adjacent spreads in the background
+  const pl = pageLeft.value
+  setTimeout(() => {
+    prerenderPage(pl + 2, 2)
+    prerenderPage(pl + 3, 2)
+    prerenderPage(pl - 1, 2)
+    prerenderPage(pl - 2, 2)
+  }, 0)
 }
 
 function prevSpread() {
@@ -240,8 +343,7 @@ function onFullscreenChange() {
   if (isFullscreen.value && showMeta.value) {
     showMeta.value = false
   }
-  // Re-render after fullscreen change to fit new dimensions
-  nextTick(() => setTimeout(renderSpread, 100))
+  // ResizeObserver handles cache invalidation and re-render once dimensions settle
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -260,9 +362,7 @@ function onKeydown(e: KeyboardEvent) {
 async function toggleMeta() {
   showMeta.value = !showMeta.value
   if (showMeta.value) await loadPdfMeta()
-  // Re-render since available width changed
-  await nextTick()
-  await renderSpread()
+  // ResizeObserver handles cache invalidation and re-render once dimensions settle
 }
 
 async function loadPdfMeta() {
@@ -278,8 +378,29 @@ async function loadPdfMeta() {
   }
 }
 
-function onWindowResize() {
-  renderSpread()
+// ResizeObserver: clear cache and re-render whenever the canvas container changes size.
+// This covers fullscreen toggle, info panel open/close, window resize, and any future
+// layout changes — no need to hook each trigger manually.
+let resizeObserver: ResizeObserver | null = null
+let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let lastObservedWidth = 0
+let resizeObserverReady = false  // ignore initial callback fired on observe()
+
+function onPagesResize(entries: ResizeObserverEntry[]) {
+  const width = Math.round(entries[0].contentRect.width)
+  if (!resizeObserverReady) {
+    // First callback is the initial observation — record width and ignore
+    lastObservedWidth = width
+    resizeObserverReady = true
+    return
+  }
+  if (width === lastObservedWidth) return
+  lastObservedWidth = width
+  if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer)
+  resizeDebounceTimer = setTimeout(() => {
+    clearPageCache()
+    renderSpread()
+  }, 80)
 }
 
 watch(pageLeft, renderSpread)
@@ -289,7 +410,6 @@ onMounted(async () => {
 
   document.addEventListener('fullscreenchange', onFullscreenChange)
   document.addEventListener('keydown', onKeydown)
-  window.addEventListener('resize', onWindowResize)
 
   try {
     const [sheetData, pdfData, foldersData] = await Promise.all([
@@ -301,6 +421,7 @@ onMounted(async () => {
     folders.value = foldersData.folders
     populateEditForm(sheetData.metadata || {})
 
+    clearPageCache()
     pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise
     totalPages.value = pdfDoc.numPages
     loading.value = false
@@ -308,6 +429,15 @@ onMounted(async () => {
 
     await nextTick()
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+    // Start ResizeObserver now that pagesRef is in the DOM.
+    // resizeObserverReady starts false so the initial callback is treated as
+    // the baseline measurement and does not trigger a re-render.
+    if (pagesRef.value) {
+      resizeObserver = new ResizeObserver(onPagesResize)
+      resizeObserver.observe(pagesRef.value)
+    }
+
     await renderSpread()
   } catch (e: any) {
     error.value = e.message
@@ -318,8 +448,10 @@ onMounted(async () => {
 onUnmounted(() => {
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   document.removeEventListener('keydown', onKeydown)
-  window.removeEventListener('resize', onWindowResize)
+  resizeObserver?.disconnect()
+  if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer)
   pdfDoc?.destroy()
+  clearPageCache()
 })
 </script>
 
