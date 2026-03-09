@@ -384,9 +384,16 @@ async function loadPdfMeta() {
 let resizeObserver: ResizeObserver | null = null
 let resizeDebounceTimer: ReturnType<typeof setTimeout> | null = null
 let lastObservedWidth = 0
+let resizeObserverReady = false  // ignore initial callback fired on observe()
 
 function onPagesResize(entries: ResizeObserverEntry[]) {
   const width = Math.round(entries[0].contentRect.width)
+  if (!resizeObserverReady) {
+    // First callback is the initial observation — record width and ignore
+    lastObservedWidth = width
+    resizeObserverReady = true
+    return
+  }
   if (width === lastObservedWidth) return
   lastObservedWidth = width
   if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer)
@@ -423,9 +430,10 @@ onMounted(async () => {
     await nextTick()
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
-    // Start ResizeObserver now that pagesRef is in the DOM
+    // Start ResizeObserver now that pagesRef is in the DOM.
+    // resizeObserverReady starts false so the initial callback is treated as
+    // the baseline measurement and does not trigger a re-render.
     if (pagesRef.value) {
-      lastObservedWidth = pagesRef.value.offsetWidth
       resizeObserver = new ResizeObserver(onPagesResize)
       resizeObserver.observe(pagesRef.value)
     }
