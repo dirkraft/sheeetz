@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from .conftest import wait_for_scan
+from sheeetz.storage.organize import resolve_template
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -139,6 +140,15 @@ async def test_organize_moves_file_local(client, tmp_path):
     updated = sheet_resp.json()
     assert updated["filename"] == "sample.pdf"
     assert "Ludwig van Beethoven" in updated["backend_file_id"]
+
+
+def test_sanitize_colon_local_vs_drive():
+    """Colons should be replaced for local but preserved for gdrive."""
+    vars = {'title': 'Sonata: Op. 27'}
+    local_path, _ = resolve_template('$title', vars, 'local')
+    drive_path, _ = resolve_template('$title', vars, 'gdrive')
+    assert ':' not in local_path
+    assert ':' in drive_path
 
 
 async def test_organize_no_sheets(client):

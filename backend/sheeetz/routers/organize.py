@@ -141,7 +141,7 @@ async def _run_organize(
 
                 job.current_file = sheet.filename
                 vars = build_vars(sheet)
-                rel_path, warnings = resolve_template(template, vars)
+                rel_path, warnings = resolve_template(template, vars, sheet.backend_type)
 
                 if rel_path is None:
                     job.failed_count += 1
@@ -201,7 +201,7 @@ async def preview_organize(
             continue
 
         vars = build_vars(sheet)
-        rel_path, warnings = resolve_template(body.template, vars)
+        rel_path, warnings = resolve_template(body.template, vars, sheet.backend_type)
         from_path = _display_path(sheet)
 
         if rel_path is None:
