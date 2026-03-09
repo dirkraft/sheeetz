@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onActivated } from 'vue'
+import { ref, computed, watch, onMounted, onActivated, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   getSheets, getSelectedFolders, getSettings, updateSettings,
@@ -8,6 +8,11 @@ import {
 } from '../api'
 
 const router = useRouter()
+
+// --- Sticky controls bar ---
+const controlsBarRef = ref<HTMLElement | null>(null)
+const controlsHeight = ref(0)
+let controlsObserver: ResizeObserver | null = null
 
 // --- Column definitions ---
 
@@ -243,6 +248,13 @@ watch([filterFolderId], () => {
 watch(page, load)
 
 onMounted(async () => {
+  if (controlsBarRef.value) {
+    controlsObserver = new ResizeObserver(() => {
+      controlsHeight.value = controlsBarRef.value?.offsetHeight ?? 0
+    })
+    controlsObserver.observe(controlsBarRef.value)
+  }
+
   // Fetch custom metadata keys so dynamic columns are available before restoring settings
   try {
     const { keys } = await getMetadataKeys()
@@ -288,6 +300,10 @@ onMounted(async () => {
 onActivated(() => {
   if (!initialized.value) return
   load()
+})
+
+onUnmounted(() => {
+  controlsObserver?.disconnect()
 })
 
 const totalPages = ref(0)
@@ -580,15 +596,6 @@ function onRowAuxClick(e: MouseEvent, id: number) {
     <div class="header-row">
       <h1>Sheet Music</h1>
       <div class="header-actions">
-        <!-- Actions menu (shown when sheets selected) -->
-        <div v-if="selectedIds.size > 0" class="actions-wrap" @click.stop>
-          <button class="actions-btn" @click="showActionsMenu = !showActionsMenu">
-            Actions ({{ selectedIds.size }}) ▾
-          </button>
-          <div v-if="showActionsMenu" class="actions-menu">
-            <button class="action-item" @click="openOrganizeWizard">Organize files…</button>
-          </div>
-        </div>
         <div class="column-picker-wrap" @click.stop>
           <button class="columns-btn" @click="showColumnPicker = !showColumnPicker">
             Columns
@@ -625,19 +632,36 @@ function onRowAuxClick(e: MouseEvent, id: number) {
       </div>
     </div>
 
-    <div class="filters">
-      <input
-        v-model="filterSearch"
-        type="text"
-        placeholder="Search sheets..."
-        class="filter-input"
-      />
-      <select v-model="filterFolderId" class="filter-select">
-        <option :value="null">All Folders</option>
-        <option v-for="f in folders" :key="f.id" :value="f.id">
-          {{ f.folder_name }}
-        </option>
-      </select>
+    <div ref="controlsBarRef" class="sheets-controls">
+      <div class="filters">
+        <!-- Actions menu (shown when sheets selected) -->
+        <div v-if="selectedIds.size > 0" class="actions-wrap" @click.stop>
+          <button class="actions-btn" @click="showActionsMenu = !showActionsMenu">
+            Actions ({{ selectedIds.size }}) ▾
+          </button>
+          <div v-if="showActionsMenu" class="actions-menu">
+            <button class="action-item" @click="openOrganizeWizard">Organize files…</button>
+          </div>
+        </div>
+        <input
+          v-model="filterSearch"
+          type="text"
+          placeholder="Search sheets..."
+          class="filter-input"
+        />
+        <select v-model="filterFolderId" class="filter-select">
+          <option :value="null">All Folders</option>
+          <option v-for="f in folders" :key="f.id" :value="f.id">
+            {{ f.folder_name }}
+          </option>
+        </select>
+      </div>
+      <div v-if="sheets.length > 0" class="result-bar">
+        <p class="result-count">{{ total }} sheet{{ total !== 1 ? 's' : '' }} found</p>
+        <button v-if="selectedIds.size > 0" class="clear-selection-btn" @click="clearSelection">
+          Clear selection
+        </button>
+      </div>
     </div>
 
     <div v-if="error" class="error">{{ error }}</div>
@@ -648,16 +672,8 @@ function onRowAuxClick(e: MouseEvent, id: number) {
       <p>No sheet music found. Go to <router-link to="/library">Library</router-link> to add folders and scan for PDFs.</p>
     </div>
 
-    <template v-else>
-      <div class="result-bar">
-        <p class="result-count">{{ total }} sheet{{ total !== 1 ? 's' : '' }} found</p>
-        <button v-if="selectedIds.size > 0" class="clear-selection-btn" @click="clearSelection">
-          Clear selection
-        </button>
-      </div>
-
-      <table class="sheets-table">
-        <thead>
+    <table v-else class="sheets-table">
+        <thead :style="{ top: controlsHeight + 'px' }">
           <tr>
             <th class="select-col">
               <input
@@ -715,7 +731,6 @@ function onRowAuxClick(e: MouseEvent, id: number) {
         <span>Page {{ page }} of {{ totalPages }}</span>
         <button :disabled="page >= totalPages" @click="page++">Next</button>
       </div>
-    </template>
 
     <!-- Organize Wizard Modal -->
     <teleport to="body">
@@ -950,14 +965,14 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 
 .actions-menu {
   position: absolute;
-  right: 0;
+  left: 0;
   top: 100%;
   margin-top: 4px;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  z-index: 10;
+  z-index: 30;
   min-width: 160px;
   padding: 0.3rem 0;
 }
@@ -1006,7 +1021,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   border-radius: 6px;
   padding: 0.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 10;
+  z-index: 30;
   min-width: 160px;
 }
 
@@ -1056,10 +1071,20 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   margin-left: 0.2rem;
 }
 
+.sheets-controls {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--c-bg);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
 .filters {
   display: flex;
   gap: 0.75rem;
-  margin-bottom: 1rem;
+  padding-top: 0.5rem;
+  margin-bottom: 0.5rem;
   flex-wrap: wrap;
 }
 
@@ -1124,6 +1149,9 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   font-size: 0.85rem;
   color: var(--c-text-muted);
   border-bottom: 2px solid var(--c-border);
+  position: sticky;
+  background: var(--c-bg);
+  z-index: 10;
 }
 
 .select-col {
@@ -1151,6 +1179,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 :global(html[data-theme='dark']) .sheets-table th {
   color: #b8c0c8;
   border-bottom-color: #4a525b;
+  background: #171a1d;
 }
 
 :global(html[data-theme='dark']) .sheets-table tbody .sheet-row:hover {
