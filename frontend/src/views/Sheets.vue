@@ -880,8 +880,8 @@ const progressPct = computed(() => {
   right: 0;
   top: 100%;
   margin-top: 4px;
-  background: white;
-  border: 1px solid #ccc;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   z-index: 10;
@@ -901,7 +901,7 @@ const progressPct = computed(() => {
 }
 
 .action-item:hover {
-  background: #f5f5f5;
+  background: var(--c-hover);
 }
 
 .column-picker-wrap {
@@ -910,15 +910,16 @@ const progressPct = computed(() => {
 
 .columns-btn {
   padding: 0.4rem 0.8rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--c-border);
   border-radius: 4px;
-  background: white;
+  background: var(--c-surface);
+  color: var(--c-text);
   cursor: pointer;
   font-size: 0.85rem;
 }
 
 .columns-btn:hover {
-  background: #f5f5f5;
+  background: var(--c-hover);
 }
 
 .column-picker {
@@ -926,8 +927,9 @@ const progressPct = computed(() => {
   right: 0;
   top: 100%;
   margin-top: 4px;
-  background: white;
-  border: 1px solid #ccc;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
   border-radius: 6px;
   padding: 0.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -948,7 +950,7 @@ const progressPct = computed(() => {
 }
 
 .column-option:hover {
-  background: #f5f5f5;
+  background: var(--c-hover);
 }
 
 .column-option.dragging {
@@ -1070,7 +1072,7 @@ const progressPct = computed(() => {
 }
 
 .sheet-row:hover {
-  background: #f5f5f5;
+  background: var(--c-hover);
 }
 
 .sheet-row.selected {
