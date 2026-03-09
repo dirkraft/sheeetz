@@ -273,6 +273,9 @@ onMounted(async () => {
     if (settings.organizeTemplate) {
       organizeTemplate.value = settings.organizeTemplate
     }
+    if (settings.organizeTemplateHistory?.length) {
+      templateHistory.value = settings.organizeTemplateHistory
+    }
   } catch {
     // use defaults
   }
@@ -412,6 +415,8 @@ type WizardStep = 'template' | 'preview' | 'progress' | 'done'
 const wizardOpen = ref(false)
 const wizardStep = ref<WizardStep>('template')
 const organizeTemplate = ref('($composer or $artist)/($title or $filename).$ext')
+const templateHistory = ref<string[]>([])
+const showHistoryDropdown = ref(false)
 const previews = ref<SheetPreview[]>([])
 const previewError = ref('')
 const previewLoading = ref(false)
@@ -419,6 +424,25 @@ const previewLoading = ref(false)
 const confirmedIds = ref(new Set<number>())
 const organizeJob = ref<OrganizeJobStatus | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
+
+function recordTemplateHistory(template: string) {
+  const t = template.trim()
+  if (!t) return
+  const history = templateHistory.value.filter((h) => h !== t)
+  history.unshift(t)
+  templateHistory.value = history
+  updateSettings({ organizeTemplateHistory: history }).catch(() => {})
+}
+
+function selectHistoryEntry(entry: string) {
+  organizeTemplate.value = entry
+  showHistoryDropdown.value = false
+}
+
+function removeHistoryEntry(entry: string) {
+  templateHistory.value = templateHistory.value.filter((h) => h !== entry)
+  updateSettings({ organizeTemplateHistory: templateHistory.value }).catch(() => {})
+}
 
 function openOrganizeWizard() {
   showActionsMenu.value = false
@@ -483,6 +507,7 @@ async function submitOrganize() {
   if (!ids.length) return
 
   wizardStep.value = 'progress'
+  recordTemplateHistory(organizeTemplate.value)
   try {
     const job = await startOrganize(ids, organizeTemplate.value)
     organizeJob.value = job
@@ -708,13 +733,34 @@ function onRowAuxClick(e: MouseEvent, id: number) {
               <strong>{{ confirmedIds.size }}</strong> file{{ confirmedIds.size !== 1 ? 's' : '' }}.
               Files will be moved within their library folder.
             </p>
-            <label class="field-label">Path template</label>
-            <input
-              v-model="organizeTemplate"
-              class="template-input"
-              placeholder="($composer or $artist)/($title or $filename).$ext"
-              spellcheck="false"
-            />
+            <div class="field-label-row">
+              <label class="field-label">Path template</label>
+              <button
+                v-if="templateHistory.length"
+                class="history-toggle"
+                type="button"
+                @click="showHistoryDropdown = !showHistoryDropdown"
+              >History ▾</button>
+            </div>
+            <div class="template-input-wrap">
+              <input
+                v-model="organizeTemplate"
+                class="template-input"
+                placeholder="($composer or $artist)/($title or $filename).$ext"
+                spellcheck="false"
+                @focus="showHistoryDropdown = false"
+              />
+              <ul v-if="showHistoryDropdown && templateHistory.length" class="history-dropdown">
+                <li
+                  v-for="entry in templateHistory"
+                  :key="entry"
+                  class="history-entry"
+                >
+                  <button class="history-entry-btn" @click="selectHistoryEntry(entry)">{{ entry }}</button>
+                  <button class="history-remove-btn" @click.stop="removeHistoryEntry(entry)" title="Forget">✕</button>
+                </li>
+              </ul>
+            </div>
             <div class="template-help">
               <strong>Syntax:</strong>
               <code>$key</code> references a metadata field.
@@ -1312,11 +1358,34 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   margin-bottom: 1rem;
 }
 
+.field-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
 .field-label {
   display: block;
   font-weight: 600;
   font-size: 0.85rem;
-  margin-bottom: 0.35rem;
+}
+
+.history-toggle {
+  font-size: 0.78rem;
+  background: none;
+  border: none;
+  color: var(--c-link);
+  cursor: pointer;
+  padding: 0;
+}
+
+.history-toggle:hover {
+  text-decoration: underline;
+}
+
+.template-input-wrap {
+  position: relative;
 }
 
 .template-input {
@@ -1328,6 +1397,64 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   font-family: monospace;
   font-size: 0.95rem;
   background: var(--c-bg);
+  color: var(--c-text);
+}
+
+.history-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  z-index: 10;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.history-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.25rem;
+}
+
+.history-entry:hover {
+  background: var(--c-hover);
+}
+
+.history-entry-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: var(--c-text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-remove-btn {
+  background: none;
+  border: none;
+  color: var(--c-text-muted);
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.history-remove-btn:hover {
   color: var(--c-text);
 }
 
