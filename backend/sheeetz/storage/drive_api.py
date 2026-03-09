@@ -108,6 +108,43 @@ async def build_folder_path(access_token: str, folder_id: str) -> str:
     return "/" + "/".join(parts)
 
 
+async def list_children(access_token: str, folder_id: str) -> list[dict]:
+    """List all direct children (files and folders) of a Drive folder."""
+    params = {
+        "q": f"'{folder_id}' in parents and trashed = false",
+        "fields": "files(id,name,mimeType),nextPageToken",
+        "pageSize": 100,
+    }
+    headers = {"Authorization": f"Bearer {access_token}"}
+    children = []
+    async with httpx.AsyncClient() as client:
+        while True:
+            resp = await client.get(f"{DRIVE_API}/files", params=params, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+            children.extend(data.get("files", []))
+            next_page = data.get("nextPageToken")
+            if not next_page:
+                break
+            params["pageToken"] = next_page
+    return children
+
+
+async def trash_drive_file(access_token: str, file_id: str) -> None:
+    """Move a file or folder to the Drive trash (recoverable)."""
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.patch(
+            f"{DRIVE_API}/files/{file_id}",
+            json={"trashed": True},
+            headers=headers,
+        )
+        resp.raise_for_status()
+
+
 async def download_file(access_token: str, file_id: str) -> bytes:
     """Download file content from Google Drive."""
     headers = {"Authorization": f"Bearer {access_token}"}
