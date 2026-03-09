@@ -1,7 +1,7 @@
 """Path template parsing and resolution for the organize-files feature.
 
 Template syntax:
-  ($composer or $artist)/($title or $filename).$file_ext
+  ($composer or $artist)/($title or $filename).$ext
 
 Rules:
   - Segments are separated by /
@@ -9,7 +9,7 @@ Rules:
   - $varname — single variable reference (must be non-empty)
   - Anything else is a literal
   - $filename — special: stem of the original filename (no extension)
-  - $file_ext — special: file extension without dot (e.g. "pdf")
+  - $ext — special: file extension without dot (e.g. "pdf")
 """
 
 import re
@@ -89,16 +89,16 @@ def build_vars(sheet) -> dict[str, str]:
     if '/' in file_id or '\\' in file_id:
         p = Path(file_id)
         filename_stem = p.stem
-        file_ext = p.suffix.lstrip('.')
+        ext = p.suffix.lstrip('.')
     else:
         # Drive file ID — derive from sheet.filename
         p = Path(sheet.filename)
         filename_stem = p.stem
-        file_ext = p.suffix.lstrip('.')
+        ext = p.suffix.lstrip('.')
 
     vars: dict[str, str] = {
         'filename': filename_stem,
-        'file_ext': file_ext or 'pdf',
+        'ext': ext or 'pdf',
     }
     for entry in sheet.metadata_entries:
         vars[entry.key] = entry.value

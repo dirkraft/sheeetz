@@ -41,7 +41,7 @@ async def test_organize_preview_basic(client, tmp_path):
         "/organize/preview",
         json={
             "sheet_ids": [sample["id"]],
-            "template": "$composer/$title.$file_ext",
+            "template": "$composer/$title.$ext",
         },
     )
     assert resp.status_code == 200
@@ -63,7 +63,7 @@ async def test_organize_preview_missing_metadata(client):
         json={
             "sheet_ids": [sample["id"]],
             # $nonexistent key doesn't exist → can't move
-            "template": "$nonexistent/$title.$file_ext",
+            "template": "$nonexistent/$title.$ext",
         },
     )
     assert resp.status_code == 200
@@ -81,7 +81,7 @@ async def test_organize_preview_fallback(client):
         "/organize/preview",
         json={
             "sheet_ids": [sample["id"]],
-            "template": "($composer or $nonexistent)/($title or $filename).$file_ext",
+            "template": "($composer or $nonexistent)/($title or $filename).$ext",
         },
     )
     assert resp.status_code == 200
@@ -117,12 +117,12 @@ async def test_organize_moves_file_local(client, tmp_path):
     all_sheets = sheets.json()["sheets"]
     sample = next(s for s in all_sheets if s["filename"] == "sample.pdf")
 
-    # Organize: $composer/$filename.$file_ext
+    # Organize: $composer/$filename.$ext
     resp = await client.post(
         "/organize",
         json={
             "sheet_ids": [sample["id"]],
-            "template": "$composer/$filename.$file_ext",
+            "template": "$composer/$filename.$ext",
         },
     )
     assert resp.status_code == 200
@@ -145,7 +145,7 @@ async def test_organize_no_sheets(client):
     """Empty sheet_ids should return 400."""
     resp = await client.post(
         "/organize/preview",
-        json={"sheet_ids": [], "template": "$filename.$file_ext"},
+        json={"sheet_ids": [], "template": "$filename.$ext"},
     )
     assert resp.status_code == 400
 

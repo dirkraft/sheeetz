@@ -385,7 +385,7 @@ const templateVars = computed((): TemplateVar[] => {
 
   const builtins: TemplateVar[] = [
     { key: 'filename', count: total, total, example: stem },
-    { key: 'file_ext', count: total, total, example: ext },
+    { key: 'ext', count: total, total, example: ext },
   ]
 
   const metaVars: TemplateVar[] = Object.entries(counts)
@@ -411,7 +411,7 @@ type WizardStep = 'template' | 'preview' | 'progress' | 'done'
 
 const wizardOpen = ref(false)
 const wizardStep = ref<WizardStep>('template')
-const organizeTemplate = ref('($composer or $artist)/($title or $filename).$file_ext')
+const organizeTemplate = ref('($composer or $artist)/($title or $filename).$ext')
 const previews = ref<SheetPreview[]>([])
 const previewError = ref('')
 const previewLoading = ref(false)
@@ -451,8 +451,8 @@ async function runPreview() {
     const result = await previewOrganize(ids, organizeTemplate.value)
     updateSettings({ organizeTemplate: organizeTemplate.value }).catch(() => {})
     previews.value = result.previews
-    // Re-sync confirmedIds to only include sheet_ids in previews
-    confirmedIds.value = new Set(result.previews.map((p) => p.sheet_id))
+    // Re-sync confirmedIds to moveable sheets only (excludes no-ops and errors)
+    confirmedIds.value = new Set(result.previews.filter((p) => p.can_move).map((p) => p.sheet_id))
     wizardStep.value = 'preview'
   } catch (e: any) {
     previewError.value = e.message
@@ -712,14 +712,14 @@ function onRowAuxClick(e: MouseEvent, id: number) {
             <input
               v-model="organizeTemplate"
               class="template-input"
-              placeholder="($composer or $artist)/($title or $filename).$file_ext"
+              placeholder="($composer or $artist)/($title or $filename).$ext"
               spellcheck="false"
             />
             <div class="template-help">
               <strong>Syntax:</strong>
               <code>$key</code> references a metadata field.
               <code>($a or $b)</code> uses the first non-empty value.
-              Built-ins: <code>$filename</code> (stem), <code>$file_ext</code> (extension).
+              Built-ins: <code>$filename</code> (stem), <code>$ext</code> (extension).
               Segments separated by <code>/</code> become folders.
             </div>
 
@@ -777,7 +777,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
                   <tr
                     v-for="p in previews"
                     :key="p.sheet_id"
-                    :class="{ 'row-disabled': !p.can_move }"
+                    :class="{ 'row-disabled': !p.can_move, 'row-no-op': p.no_op }"
                   >
                     <td class="select-col">
                       <input
@@ -789,10 +789,11 @@ function onRowAuxClick(e: MouseEvent, id: number) {
                     </td>
                     <td class="path-cell">
                       <div class="path-from"><span class="path-label">from</span>{{ p.from_path }}</div>
-                      <div class="path-to"><span class="path-label">to</span>{{ p.to_path ?? '—' }}</div>
+                      <div v-if="!p.no_op" class="path-to"><span class="path-label">to</span>{{ p.to_path ?? '—' }}</div>
                     </td>
                     <td class="status-col">
-                      <span v-if="!p.can_move" class="warning-badge" :title="p.warning">
+                      <span v-if="p.no_op" class="noop-badge">already here</span>
+                      <span v-else-if="!p.can_move" class="warning-badge" :title="p.warning">
                         ⚠ {{ p.warning }}
                       </span>
                       <span v-else-if="!confirmedIds.has(p.sheet_id)" class="skip-badge">
@@ -1435,6 +1436,10 @@ function onRowAuxClick(e: MouseEvent, id: number) {
   opacity: 0.5;
 }
 
+.row-no-op {
+  opacity: 0.4;
+}
+
 .path-cell {
   font-family: monospace;
   font-size: 0.8rem;
@@ -1477,6 +1482,12 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 }
 
 .skip-badge {
+  color: #999;
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+.noop-badge {
   color: #999;
   font-size: 0.78rem;
   font-style: italic;
