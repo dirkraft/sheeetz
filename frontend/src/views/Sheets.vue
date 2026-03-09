@@ -596,15 +596,6 @@ function onRowAuxClick(e: MouseEvent, id: number) {
     <div class="header-row">
       <h1>Sheet Music</h1>
       <div class="header-actions">
-        <!-- Actions menu (shown when sheets selected) -->
-        <div v-if="selectedIds.size > 0" class="actions-wrap" @click.stop>
-          <button class="actions-btn" @click="showActionsMenu = !showActionsMenu">
-            Actions ({{ selectedIds.size }}) ▾
-          </button>
-          <div v-if="showActionsMenu" class="actions-menu">
-            <button class="action-item" @click="openOrganizeWizard">Organize files…</button>
-          </div>
-        </div>
         <div class="column-picker-wrap" @click.stop>
           <button class="columns-btn" @click="showColumnPicker = !showColumnPicker">
             Columns
@@ -643,6 +634,15 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 
     <div ref="controlsBarRef" class="sheets-controls">
       <div class="filters">
+        <!-- Actions menu (shown when sheets selected) -->
+        <div v-if="selectedIds.size > 0" class="actions-wrap" @click.stop>
+          <button class="actions-btn" @click="showActionsMenu = !showActionsMenu">
+            Actions ({{ selectedIds.size }}) ▾
+          </button>
+          <div v-if="showActionsMenu" class="actions-menu">
+            <button class="action-item" @click="openOrganizeWizard">Organize files…</button>
+          </div>
+        </div>
         <input
           v-model="filterSearch"
           type="text"
@@ -965,14 +965,14 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 
 .actions-menu {
   position: absolute;
-  right: 0;
+  left: 0;
   top: 100%;
   margin-top: 4px;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  z-index: 10;
+  z-index: 30;
   min-width: 160px;
   padding: 0.3rem 0;
 }
