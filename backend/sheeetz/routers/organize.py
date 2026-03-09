@@ -44,6 +44,7 @@ class SheetPreview(BaseModel):
     from_path: str
     to_path: str | None
     can_move: bool
+    no_op: bool = False
     warning: str | None = None
 
 
@@ -218,12 +219,14 @@ async def preview_organize(
                 to_path = str(Path(folder_root) / rel_path)
             else:
                 to_path = rel_path
+            no_op = (from_path == to_path)
             previews.append(SheetPreview(
                 sheet_id=sid,
                 filename=sheet.filename,
                 from_path=from_path,
                 to_path=to_path,
-                can_move=True,
+                can_move=not no_op,
+                no_op=no_op,
             ))
 
     return PreviewResponse(previews=previews)

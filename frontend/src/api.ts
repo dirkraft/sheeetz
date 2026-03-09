@@ -157,6 +157,7 @@ export interface SheetPreview {
   from_path: string
   to_path: string | null
   can_move: boolean
+  no_op?: boolean
   warning?: string
 }
 
