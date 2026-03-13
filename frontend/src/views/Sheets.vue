@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import {
   getSheets, getSelectedFolders, getSettings, updateSettings,
   getMetadataKeys, previewOrganize, startOrganize, getOrganizeJob,
+  setSheetFavorite,
   type SheetRecord, type LibraryFolder, type SheetPreview, type OrganizeJobStatus,
 } from '../api'
 
@@ -183,6 +184,7 @@ const pageSize = 50
 
 const filterSearch = ref('')
 const filterFolderId = ref<number | null>(null)
+const filterFavorites = ref(false)
 
 const folders = ref<LibraryFolder[]>([])
 const loading = ref(false)
@@ -204,6 +206,20 @@ function getSortKeysInOrder(): string[] {
   return keys
 }
 
+async function toggleFavorite(id: number, current: boolean) {
+  // Optimistic update
+  const sheet = sheets.value.find((s) => s.id === id)
+  if (sheet) sheet.is_favorite = !current
+  try {
+    await setSheetFavorite(id, !current)
+    // If filtering to favorites, a newly-unfavorited row should disappear
+    if (filterFavorites.value) load()
+  } catch {
+    // Revert on failure
+    if (sheet) sheet.is_favorite = current
+  }
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -211,6 +227,7 @@ async function load() {
     const data = await getSheets({
       search: filterSearch.value || undefined,
       folder_id: filterFolderId.value ?? undefined,
+      favorites: filterFavorites.value || undefined,
       sort_keys: getSortKeysInOrder(),
       page: page.value,
       page_size: pageSize,
@@ -241,7 +258,7 @@ function debouncedLoad() {
 }
 
 watch(filterSearch, debouncedLoad)
-watch([filterFolderId], () => {
+watch([filterFolderId, filterFavorites], () => {
   page.value = 1
   load()
 })
@@ -643,6 +660,12 @@ function onRowAuxClick(e: MouseEvent, id: number) {
             <button class="action-item" @click="openOrganizeWizard">Organize files…</button>
           </div>
         </div>
+        <button
+          class="filter-favorites-btn"
+          :class="{ active: filterFavorites }"
+          :title="filterFavorites ? 'Showing favorites — click to show all' : 'Show favorites only'"
+          @click="filterFavorites = !filterFavorites"
+        >&#9733;</button>
         <input
           v-model="filterSearch"
           type="text"
@@ -683,6 +706,7 @@ function onRowAuxClick(e: MouseEvent, id: number) {
                 @change="toggleSelectAll"
               />
             </th>
+            <th class="star-col"></th>
             <th
               v-for="col in activeColumns"
               :key="col.key"
@@ -705,6 +729,9 @@ function onRowAuxClick(e: MouseEvent, id: number) {
                 type="checkbox"
                 :checked="selectedIds.has(s.id)"
               />
+            </td>
+            <td class="star-col" @click.stop="toggleFavorite(s.id, s.is_favorite)">
+              <span class="star-btn" :class="{ starred: s.is_favorite }" :title="s.is_favorite ? 'Remove from favorites' : 'Add to favorites'">&#9733;</span>
             </td>
             <td v-for="col in activeColumns" :key="col.key">
               <template v-if="col.isSource">
@@ -1157,6 +1184,52 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 .select-col {
   width: 2rem;
   padding-right: 0;
+}
+
+.star-col {
+  width: 1.8rem;
+  padding: 0.6rem 0.25rem;
+  text-align: center;
+}
+
+.star-btn {
+  font-size: 1rem;
+  color: var(--c-border);
+  cursor: pointer;
+  line-height: 1;
+  user-select: none;
+}
+
+.star-btn:hover,
+.star-btn.starred {
+  color: #f5a623;
+}
+
+.filter-favorites-btn {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  background: var(--c-surface);
+  color: var(--c-border);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.filter-favorites-btn:hover {
+  color: #f5a623;
+  border-color: #f5a623;
+}
+
+.filter-favorites-btn.active {
+  color: #f5a623;
+  border-color: #f5a623;
+  background: #fff8ee;
+}
+
+:global(html[data-theme='dark']) .filter-favorites-btn.active {
+  background: #2a2010;
 }
 
 .sheet-row {
