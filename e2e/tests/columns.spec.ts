@@ -22,7 +22,7 @@ test.describe('Column Configuration', () => {
   })
 
   test('default columns match expected layout', async ({ page }) => {
-    const headers = page.locator('.sheets-table thead th:not(.select-col)')
+    const headers = page.locator('.sheets-table thead th:not(.select-col):not(.star-col):not(.star-col)')
     await expect(headers).toHaveCount(5)
     await expect(headers.nth(0)).toContainText('Filename')
     await expect(headers.nth(1)).toContainText('Composer')
@@ -48,7 +48,7 @@ test.describe('Column Configuration', () => {
     await titleCb.click({ force: true })
     await expect(titleCb).toBeChecked()
 
-    const headers = page.locator('.sheets-table thead th:not(.select-col)')
+    const headers = page.locator('.sheets-table thead th:not(.select-col):not(.star-col)')
     await expect(headers).toHaveCount(6)
     await expect(page.locator('.sheets-table thead th', { hasText: 'Title' })).toBeVisible()
   })
@@ -61,7 +61,7 @@ test.describe('Column Configuration', () => {
     await sourceCb.click({ force: true })
     await expect(sourceCb).not.toBeChecked()
 
-    const headers = page.locator('.sheets-table thead th:not(.select-col)')
+    const headers = page.locator('.sheets-table thead th:not(.select-col):not(.star-col)')
     await expect(headers).toHaveCount(4)
     await expect(page.locator('.sheets-table thead th', { hasText: 'Source' })).not.toBeVisible()
   })
@@ -86,7 +86,7 @@ test.describe('Column Configuration', () => {
     await page.reload()
     await expect(page.locator('.result-count')).toBeVisible()
 
-    const headers = page.locator('.sheets-table thead th:not(.select-col)')
+    const headers = page.locator('.sheets-table thead th:not(.select-col):not(.star-col)')
     await expect(headers).toHaveCount(5)
     await expect(page.locator('.sheets-table thead th', { hasText: 'Genre' })).toBeVisible()
     await expect(page.locator('.sheets-table thead th', { hasText: 'Source' })).not.toBeVisible()
@@ -102,7 +102,7 @@ test.describe('Column Configuration', () => {
       await expect(cb).not.toBeChecked()
     }
 
-    await expect(page.locator('.sheets-table thead th:not(.select-col)')).toHaveCount(1)
+    await expect(page.locator('.sheets-table thead th:not(.select-col):not(.star-col)')).toHaveCount(1)
 
     // Filename checkbox should be disabled
     const filenameCb = page.locator('.column-option').filter({ hasText: 'Filename' }).locator('input[type="checkbox"]')
