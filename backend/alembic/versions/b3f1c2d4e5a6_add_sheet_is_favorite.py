@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     with op.batch_alter_table('sheets', schema=None) as batch_op:
-        batch_op.add_column(sa.Column('is_favorite', sa.Boolean(), nullable=False, server_default='0'))
+        batch_op.add_column(sa.Column('is_favorite', sa.Boolean(), nullable=False, server_default=sa.false()))
 
 
 def downgrade() -> None:

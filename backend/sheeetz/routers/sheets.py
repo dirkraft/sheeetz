@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import Float, case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -401,10 +402,14 @@ async def update_metadata(
     }
 
 
+class FavoriteUpdate(BaseModel):
+    is_favorite: bool
+
+
 @router.patch("/{sheet_id}/favorite")
 async def set_favorite(
     sheet_id: int,
-    body: dict,
+    body: FavoriteUpdate,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -416,6 +421,6 @@ async def set_favorite(
     if not sheet:
         raise HTTPException(status_code=404, detail="Sheet not found")
 
-    sheet.is_favorite = bool(body.get("is_favorite", False))
+    sheet.is_favorite = body.is_favorite
     await db.commit()
     return {"id": sheet.id, "is_favorite": sheet.is_favorite}
