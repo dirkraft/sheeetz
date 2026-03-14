@@ -44,7 +44,8 @@ conn.execute("""
         backend_file_id TEXT NOT NULL,
         filename TEXT NOT NULL,
         folder_path TEXT,
-        is_favorite INTEGER NOT NULL DEFAULT 0
+        is_favorite INTEGER NOT NULL DEFAULT 0,
+        last_opened_at TEXT
     )
 """)
 conn.execute("""

@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -165,9 +166,16 @@ async def list_sheets(
         "folder_path": Sheet.folder_path,
         "backend_type": Sheet.backend_type,
     }
+    # DateTime columns sorted descending (most recent first), nulls last.
+    datetime_desc_cols = {"last_opened_at": Sheet.last_opened_at}
     sort_meta_aliases: dict[str, object] = {}
     order_clauses = []
     for key in sort_keys_list:
+        if key in datetime_desc_cols:
+            sort_col = datetime_desc_cols[key]
+            order_clauses.append(case((sort_col.is_(None), 1), else_=0).asc())
+            order_clauses.append(sort_col.desc())
+            continue
         if key in direct_sort_cols:
             sort_col = direct_sort_cols[key]
         else:
@@ -221,6 +229,7 @@ async def list_sheets(
                 "backend_type": s.backend_type,
                 "library_folder_id": s.library_folder_id,
                 "is_favorite": s.is_favorite,
+                "last_opened_at": s.last_opened_at.isoformat() if s.last_opened_at else None,
                 "metadata": {m.key: m.value for m in s.metadata_entries},
             }
             for s in sheets
@@ -270,10 +279,13 @@ async def download_sheet_pdf(
     if not sheet:
         raise HTTPException(status_code=404, detail="Sheet not found")
 
+    sheet.last_opened_at = datetime.now(timezone.utc)
+
     if sheet.backend_type == "local":
         path = Path(sheet.backend_file_id)
         if not path.is_file():
             raise HTTPException(status_code=404, detail="File not found on disk")
+        await db.commit()
         return FileResponse(path, media_type="application/pdf", filename=sheet.filename)
 
     # gdrive
@@ -283,8 +295,8 @@ async def download_sheet_pdf(
         raise HTTPException(status_code=401, detail=str(e))
     if updated_json != user.drive_token_json:
         user.drive_token_json = updated_json
-        await db.commit()
 
+    await db.commit()
     content = await download_file(access_token, sheet.backend_file_id)
     return Response(
         content=content,
