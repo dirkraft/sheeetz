@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import Float, case, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,6 +80,7 @@ async def list_sheets(
     sort_keys: str | None = Query(None, description="JSON array of sort keys in priority order"),
     sort_by: str = "filename",
     sort_dir: str = "asc",
+    favorites: bool | None = None,
     page: int = 1,
     page_size: int = 50,
     user: User = Depends(get_current_user),
@@ -92,6 +94,9 @@ async def list_sheets(
 
     if folder_id is not None:
         query = query.where(Sheet.library_folder_id == folder_id)
+
+    if favorites is not None:
+        query = query.where(Sheet.is_favorite == favorites)
 
     if filename:
         query = query.where(Sheet.filename.ilike(f"%{filename}%"))
@@ -215,6 +220,7 @@ async def list_sheets(
                 "folder_path": s.folder_path,
                 "backend_type": s.backend_type,
                 "library_folder_id": s.library_folder_id,
+                "is_favorite": s.is_favorite,
                 "metadata": {m.key: m.value for m in s.metadata_entries},
             }
             for s in sheets
@@ -246,6 +252,7 @@ async def get_sheet(
         "backend_type": sheet.backend_type,
         "backend_file_id": sheet.backend_file_id,
         "library_folder_id": sheet.library_folder_id,
+        "is_favorite": sheet.is_favorite,
         "metadata": {m.key: m.value for m in sheet.metadata_entries},
     }
 
@@ -393,3 +400,27 @@ async def update_metadata(
         "id": sheet.id,
         "metadata": {m.key: m.value for m in sheet.metadata_entries},
     }
+
+
+class FavoriteUpdate(BaseModel):
+    is_favorite: bool
+
+
+@router.patch("/{sheet_id}/favorite")
+async def set_favorite(
+    sheet_id: int,
+    body: FavoriteUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set or unset the favorite flag on a sheet."""
+    result = await db.execute(
+        select(Sheet).where(Sheet.id == sheet_id, Sheet.user_id == user.id)
+    )
+    sheet = result.scalar_one_or_none()
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Sheet not found")
+
+    sheet.is_favorite = body.is_favorite
+    await db.commit()
+    return {"id": sheet.id, "is_favorite": sheet.is_favorite}

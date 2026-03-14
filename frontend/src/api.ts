@@ -45,6 +45,7 @@ export interface SheetRecord {
   backend_type: BackendType
   backend_file_id: string
   library_folder_id: number | null
+  is_favorite: boolean
   metadata: Record<string, string>
 }
 
@@ -65,6 +66,7 @@ export interface SheetListParams {
   meta_filters?: Record<string, string>
   sort_by?: string
   sort_dir?: 'asc' | 'desc'
+  favorites?: boolean
   page?: number
   page_size?: number
 }
@@ -126,6 +128,13 @@ export async function updateSheetMetadata(sheetId: number, metadata: Record<stri
   return apiFetch<MetadataUpdateResult>(`/sheets/${sheetId}/metadata`, {
     method: 'PATCH',
     body: JSON.stringify(metadata),
+  })
+}
+
+export async function setSheetFavorite(sheetId: number, isFavorite: boolean) {
+  return apiFetch<{ id: number; is_favorite: boolean }>(`/sheets/${sheetId}/favorite`, {
+    method: 'PATCH',
+    body: JSON.stringify({ is_favorite: isFavorite }),
   })
 }
 

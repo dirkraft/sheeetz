@@ -1,4 +1,5 @@
-from sqlalchemy import Column, ForeignKey, Integer, String, Text, UniqueConstraint
+import sqlalchemy as sa
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, relationship
 
 
@@ -30,6 +31,7 @@ class Sheet(Base):
     backend_file_id = Column(String, nullable=False, index=True)  # absolute path or Drive file ID
     filename = Column(String, nullable=False)
     folder_path = Column(String, nullable=True)
+    is_favorite = Column(Boolean, nullable=False, default=False, server_default=sa.false())
 
     user = relationship("User", back_populates="sheets")
     library_folder = relationship("LibraryFolder", back_populates="sheets")

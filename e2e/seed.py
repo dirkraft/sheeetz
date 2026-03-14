@@ -43,7 +43,8 @@ conn.execute("""
         backend_type TEXT NOT NULL,
         backend_file_id TEXT NOT NULL,
         filename TEXT NOT NULL,
-        folder_path TEXT
+        folder_path TEXT,
+        is_favorite INTEGER NOT NULL DEFAULT 0
     )
 """)
 conn.execute("""
