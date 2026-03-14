@@ -185,6 +185,7 @@ const pageSize = 50
 const filterSearch = ref('')
 const filterFolderId = ref<number | null>(null)
 const filterFavorites = ref(false)
+const sortRecent = ref(false)
 
 const folders = ref<LibraryFolder[]>([])
 const loading = ref(false)
@@ -228,7 +229,7 @@ async function load() {
       search: filterSearch.value || undefined,
       folder_id: filterFolderId.value ?? undefined,
       favorites: filterFavorites.value || undefined,
-      sort_keys: getSortKeysInOrder(),
+      sort_keys: sortRecent.value ? ['last_opened_at'] : getSortKeysInOrder(),
       page: page.value,
       page_size: pageSize,
     })
@@ -258,7 +259,7 @@ function debouncedLoad() {
 }
 
 watch(filterSearch, debouncedLoad)
-watch([filterFolderId, filterFavorites], () => {
+watch([filterFolderId, filterFavorites, sortRecent], () => {
   page.value = 1
   load()
 })
@@ -666,6 +667,12 @@ function onRowAuxClick(e: MouseEvent, id: number) {
           :title="filterFavorites ? 'Showing favorites — click to show all' : 'Show favorites only'"
           @click="filterFavorites = !filterFavorites"
         >&#9733;</button>
+        <button
+          class="sort-recent-btn"
+          :class="{ active: sortRecent }"
+          :title="sortRecent ? 'Sorted by recently opened — click for default order' : 'Sort by recently opened'"
+          @click="sortRecent = !sortRecent"
+        >Recent</button>
         <input
           v-model="filterSearch"
           type="text"
@@ -1230,6 +1237,32 @@ function onRowAuxClick(e: MouseEvent, id: number) {
 
 :global(html[data-theme='dark']) .filter-favorites-btn.active {
   background: #2a2010;
+}
+
+.sort-recent-btn {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  background: var(--c-surface);
+  color: var(--c-text-muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.sort-recent-btn:hover {
+  color: var(--c-text);
+  border-color: var(--c-text-muted);
+}
+
+.sort-recent-btn.active {
+  color: #1976d2;
+  border-color: #1976d2;
+  background: #e8f0fe;
+}
+
+:global(html[data-theme='dark']) .sort-recent-btn.active {
+  background: #0d2240;
 }
 
 .sheet-row {

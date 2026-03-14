@@ -46,6 +46,7 @@ export interface SheetRecord {
   backend_file_id: string
   library_folder_id: number | null
   is_favorite: boolean
+  last_opened_at: string | null
   metadata: Record<string, string>
 }
 

@@ -1,5 +1,5 @@
 import sqlalchemy as sa
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, relationship
 
 
@@ -32,6 +32,7 @@ class Sheet(Base):
     filename = Column(String, nullable=False)
     folder_path = Column(String, nullable=True)
     is_favorite = Column(Boolean, nullable=False, default=False, server_default=sa.false())
+    last_opened_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="sheets")
     library_folder = relationship("LibraryFolder", back_populates="sheets")
