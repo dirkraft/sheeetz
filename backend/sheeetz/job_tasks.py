@@ -2,21 +2,20 @@
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Literal
+
+from .bg_tasks import BackgroundJob
 
 
 @dataclass
-class OrganizeJob:
-    job_id: str
-    user_id: int
-    total: int
-    status: Literal["running", "complete", "error"] = "running"
+class OrganizeJob(BackgroundJob):
+    job_id: str = ""
+    user_id: int = 0
+    total: int = 0
     current_file: str = ""
     processed: int = 0
     moved_count: int = 0
     failed_count: int = 0
     errors: list[str] = field(default_factory=list)
-    error: str = ""
 
 
 # Keyed by (user_id, job_id)
