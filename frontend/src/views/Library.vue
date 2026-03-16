@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { cleanupEmptyDirs, getConfig, getSelectedFolders, getScanStatus, removeFolder, scanFolder, type BackendType, type LibraryFolder, type ScanStatus } from '../api'
+import { cleanupEmptyDirs, getCleanupStatus, getConfig, getSelectedFolders, getScanStatus, removeFolder, scanFolder, type BackendType, type CleanupStatus, type LibraryFolder, type ScanStatus } from '../api'
 import FolderPicker from '../components/FolderPicker.vue'
 
 const selectedFolders = ref<LibraryFolder[]>([])
@@ -9,7 +9,7 @@ const showPicker = ref(false)
 const loading = ref(true)
 const error = ref('')
 const scanStates = ref<Map<number, ScanStatus>>(new Map())
-const cleanupLoading = ref<Set<number>>(new Set())
+const cleanupStates = ref<Map<number, CleanupStatus>>(new Map())
 const cleanupResults = ref<Map<number, string>>(new Map())
 
 const selectedIds = computed(() => new Set(selectedFolders.value.map(f => f.backend_folder_id)))
@@ -17,7 +17,11 @@ const selectedIds = computed(() => new Set(selectedFolders.value.map(f => f.back
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 function isScanning(id: number): boolean {
-  return scanStates.value.get(id)?.status === 'scanning'
+  return scanStates.value.get(id)?.status === 'running'
+}
+
+function isCleaningUp(id: number): boolean {
+  return cleanupStates.value.get(id)?.status === 'running'
 }
 
 function startPolling() {
@@ -34,13 +38,13 @@ function stopPolling() {
 
 function hasActiveScans(): boolean {
   for (const s of scanStates.value.values()) {
-    if (s.status === 'scanning') return true
+    if (s.status === 'running') return true
   }
   return false
 }
 
 async function pollActiveScan() {
-  const scanning = [...scanStates.value.entries()].filter(([, s]) => s.status === 'scanning')
+  const scanning = [...scanStates.value.entries()].filter(([, s]) => s.status === 'running')
   if (!scanning.length) {
     stopPolling()
     return
@@ -106,26 +110,35 @@ async function handleScan(id: number) {
   try {
     const status = await scanFolder(id)
     scanStates.value = new Map([...scanStates.value, [id, status]])
-    if (status.status === 'scanning') startPolling()
+    if (status.status === 'running') startPolling()
   } catch (e: any) {
     error.value = e.message
   }
 }
 
 async function handleCleanup(id: number) {
-  cleanupLoading.value = new Set([...cleanupLoading.value, id])
   cleanupResults.value.delete(id)
   try {
-    const result = await cleanupEmptyDirs(id)
-    const msg = result.removed > 0
-      ? `${result.removed} empty folder${result.removed === 1 ? '' : 's'} removed`
-      : 'No empty folders found'
-    cleanupResults.value = new Map([...cleanupResults.value, [id, msg]])
+    let status = await cleanupEmptyDirs(id)
+    cleanupStates.value = new Map([...cleanupStates.value, [id, status]])
+    while (status.status === 'running') {
+      await new Promise(r => setTimeout(r, 1000))
+      status = await getCleanupStatus(id)
+      cleanupStates.value = new Map([...cleanupStates.value, [id, status]])
+    }
+    if (status.status === 'complete') {
+      const msg = status.removed > 0
+        ? `${status.removed} empty folder${status.removed === 1 ? '' : 's'} removed`
+        : 'No empty folders found'
+      cleanupResults.value = new Map([...cleanupResults.value, [id, msg]])
+    } else {
+      cleanupResults.value = new Map([...cleanupResults.value, [id, `Error: ${status.error || 'Unknown error'}`]])
+    }
   } catch (e: any) {
     cleanupResults.value = new Map([...cleanupResults.value, [id, `Error: ${e.message}`]])
   } finally {
-    cleanupLoading.value.delete(id)
-    cleanupLoading.value = new Set(cleanupLoading.value)
+    cleanupStates.value.delete(id)
+    cleanupStates.value = new Map(cleanupStates.value)
   }
 }
 </script>
@@ -151,7 +164,7 @@ async function handleCleanup(id: number) {
                 <small class="folder-path">{{ f.folder_path }}</small>
               </div>
               <div v-if="scanStates.has(f.id)" class="scan-status">
-                <template v-if="scanStates.get(f.id)!.status === 'scanning'">
+                <template v-if="scanStates.get(f.id)!.status === 'running'">
                   <span class="scan-progress">
                     Scanning{{ scanStates.get(f.id)!.total_count != null
                       ? ` (${scanStates.get(f.id)!.processed}/${scanStates.get(f.id)!.total_count})`
@@ -177,8 +190,8 @@ async function handleCleanup(id: number) {
               <button class="scan-btn" :disabled="isScanning(f.id)" @click="handleScan(f.id)">
                 {{ isScanning(f.id) ? 'Scanning...' : 'Scan' }}
               </button>
-              <button class="cleanup-btn" :disabled="cleanupLoading.has(f.id)" @click="handleCleanup(f.id)">
-                {{ cleanupLoading.has(f.id) ? 'Cleaning...' : 'Clean up empty folders' }}
+              <button class="cleanup-btn" :disabled="isCleaningUp(f.id)" @click="handleCleanup(f.id)">
+                {{ isCleaningUp(f.id) ? 'Cleaning...' : 'Clean up empty folders' }}
               </button>
               <span v-if="cleanupResults.has(f.id)" class="cleanup-result">{{ cleanupResults.get(f.id) }}</span>
               <button class="remove-btn" @click="handleRemove(f.id)">Remove</button>

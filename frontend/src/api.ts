@@ -143,7 +143,7 @@ export async function setSheetFavorite(sheetId: number, isFavorite: boolean) {
 
 export interface ScanStatus {
   folder_id: number
-  status: 'idle' | 'scanning' | 'complete' | 'error'
+  status: 'idle' | 'running' | 'complete' | 'error'
   current_file?: string
   processed?: number
   new_count?: number
@@ -270,6 +270,17 @@ export async function removeFolder(folderId: number) {
   return apiFetch<void>(`/folders/${folderId}`, { method: 'DELETE' })
 }
 
+export interface CleanupStatus {
+  folder_id: number
+  status: 'idle' | 'running' | 'complete' | 'error'
+  removed: number
+  error?: string
+}
+
 export async function cleanupEmptyDirs(folderId: number) {
-  return apiFetch<{ removed: number }>(`/folders/${folderId}/cleanup-empty-dirs`, { method: 'POST' })
+  return apiFetch<CleanupStatus>(`/folders/${folderId}/cleanup-empty-dirs`, { method: 'POST' })
+}
+
+export async function getCleanupStatus(folderId: number) {
+  return apiFetch<CleanupStatus>(`/folders/${folderId}/cleanup-status`)
 }
